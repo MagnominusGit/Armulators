@@ -1,0 +1,74 @@
+# Copyright (c) 2026 Magnominus
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+# An emulator's standalone app as AppImages and an APK, made the same way for each emulator: called
+# by the emulator's own workflow, whose repository has Armulators as its armulators submodule. With a
+# release, the files go to it; else they stay with the run.
+name: app
+
+on:
+  workflow_call:
+    inputs:
+      release:
+        description: The release (its tag) the files go to.
+        type: string
+        default: ''
+    secrets:
+      keystore:
+        description: The APK's signing keystore, base64, so each release installs over the last.
+        required: false
+
+jobs:
+  appimage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+      - run: armulators/package/appimage/build.sh && armulators/package/appimage/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimages
+          path: build-appimage/*.AppImage
+
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" "build-tools;34.0.0" "platforms;android-34" > /dev/null
+      - env:
+          KEYSTORE_BASE64: ${{ secrets.keystore }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/app.keystore"
+            export KEYSTORE="$RUNNER_TEMP/app.keystore"
+          fi
+          ANDROID_NDK="$ANDROID_HOME/ndk/27.2.12479018" armulators/package/android/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: build-android/*.apk
+
+  release:
+    if: inputs.release != ''
+    needs: [appimage, android]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.release }}" files/* --clobber --repo "${{ github.repository }}"

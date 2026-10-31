@@ -11,7 +11,7 @@
 # then SDL's Java and the app's, packed and signed with the Android SDK's tools, without Gradle. The
 # icon is the emulator's app/android-res. ANDROID_NDK and ANDROID_HOME say where they are;
 # SDL2_SOURCE, SDL2's source, else its release is downloaded. The signing key is kept in
-# ~/.android/<id>.keystore, so each build installs over the last.
+# ~/.android/<id>.keystore (or KEYSTORE), so each build installs over the last.
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "${1:-$here/../../..}" && pwd)
@@ -72,7 +72,7 @@ cp "$out/sdl-$abi/libSDL2.so" "$out/app-$abi/libmain.so" "$out/apk/lib/$abi/"
 "$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" "$out/apk/lib/$abi/"*.so
 (cd "$out/apk" && zip -q base.apk classes.dex && zip -q -0 base.apk lib/$abi/*.so)
 "$tools/zipalign" -p -f 4 "$out/apk/base.apk" "$out/apk/aligned.apk"
-key=$HOME/.android/$APP_ID.keystore
+key=${KEYSTORE:-$HOME/.android/$APP_ID.keystore}
 if [ ! -f "$key" ]; then
 	mkdir -p "$(dirname "$key")"
 	keytool -genkeypair -keystore "$key" -storepass android -keypass android -alias $APP_ID -keyalg RSA -keysize 2048 \
