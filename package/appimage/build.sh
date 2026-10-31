@@ -17,13 +17,13 @@ mkdir -p "$out"
 cmake -DDESCRIPTOR="$root/app.cmake" -DOUT="$out/app.sh" -P "$here/../describe.cmake"
 . "$out/app.sh"
 docker build -q -t armulators-appimage "$here" > /dev/null
-docker run --rm -u "$(id -u):$(id -g)" -v "$root:/src" -w /src -e APP_ID="$APP_ID" -e OPTION="$APP_BUILD_OPTION" -e TARGET="$APP_BUILD_TARGET" \
-	-e TOOLCHAIN="/src/${here#"$root"/}/aarch64.cmake" armulators-appimage sh -c '
+docker run --rm -u "$(id -u):$(id -g)" -v "$root:/src" -w /src -e APP_ID="$APP_ID" -e OPTION="$APP_BUILD_OPTION" \
+	-e TARGET="$APP_BUILD_TARGET" -e ARGS="$APP_BUILD_ARGS" -e TOOLCHAIN="/src/${here#"$root"/}/aarch64.cmake" armulators-appimage sh -c '
 	set -e
 	for arch in x86_64 aarch64; do
 		toolchain=
 		[ $arch = aarch64 ] && toolchain=-DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN
-		cmake -S . -B build-appimage/build-$arch $toolchain -DCMAKE_BUILD_TYPE=Release -D$OPTION=ON \
+		cmake -S . -B build-appimage/build-$arch $toolchain -DCMAKE_BUILD_TYPE=Release -D$OPTION=ON $ARGS \
 			-DSDL2_INCLUDE_DIR=/opt/sdl2-$arch/include/SDL2 \
 			"-DSDL2_LIBRARY=/opt/sdl2-$arch/lib/libSDL2.a;-ldl;-lrt;-lpthread;-static-libstdc++;-static-libgcc" > /dev/null
 		cmake --build build-appimage/build-$arch -j"$(nproc)" --target $TARGET > build-appimage/build-$arch.log 2>&1 || { tail -20 build-appimage/build-$arch.log; exit 1; }

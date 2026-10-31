@@ -44,7 +44,7 @@ fi
 android="-DCMAKE_TOOLCHAIN_FILE=$ndk/build/cmake/android.toolchain.cmake -DANDROID_ABI=$abi -DANDROID_PLATFORM=$api -DCMAKE_BUILD_TYPE=Release -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
 cmake -S "$SDL2_SOURCE" -B "$out/sdl-$abi" -G Ninja $android -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST=OFF > /dev/null
 cmake --build "$out/sdl-$abi" > "$out/sdl-$abi.log" 2>&1 || { tail -20 "$out/sdl-$abi.log"; exit 1; }
-cmake -S "$root" -B "$out/app-$abi" -G Ninja $android -D$APP_BUILD_OPTION=ON \
+cmake -S "$root" -B "$out/app-$abi" -G Ninja $android -D$APP_BUILD_OPTION=ON $APP_BUILD_ARGS \
 	"-DSDL2_INCLUDE_DIR=$SDL2_SOURCE/include;$out/sdl-$abi/include;$out/sdl-$abi/include-config-release/SDL2" \
 	"-DSDL2_LIBRARY=$out/sdl-$abi/libSDL2.so;log;android" > /dev/null
 cmake --build "$out/app-$abi" --target $APP_BUILD_TARGET > "$out/app-$abi.log" 2>&1 || { tail -20 "$out/app-$abi.log"; exit 1; }
