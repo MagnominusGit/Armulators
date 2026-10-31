@@ -1,8 +1,7 @@
 /* Copyright (c) 2026 Magnominus
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * SPDX-License-Identifier: GPL-3.0-only
+ * Licensed under the GNU General Public License, version 3: see LICENSE. */
 
 // RetroAchievements, through their rcheevos library (libretro/deps/rcheevos). It talks to
 // retroachievements.org with the system's libcurl, loaded when first needed so armgba runs without

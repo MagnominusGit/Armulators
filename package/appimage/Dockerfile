@@ -1,8 +1,7 @@
 # Copyright (c) 2026 Magnominus
 #
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# SPDX-License-Identifier: GPL-3.0-only
+# Licensed under the GNU General Public License, version 3: see LICENSE.
 
 # The machine the AppImages are built on: Debian 11, whose glibc is old enough that they run on
 # glibc 2.29 or later. Debian 11's packages are now on Debian's archive.

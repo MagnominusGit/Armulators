@@ -2,9 +2,8 @@
 
 # Copyright (c) 2026 Magnominus
 #
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# SPDX-License-Identifier: GPL-3.0-only
+# Licensed under the GNU General Public License, version 3: see LICENSE.
 
 # package.sh [emulator]: makes build-appimage/<name>-x86_64.AppImage and <name>-aarch64.AppImage
 # from what build.sh built, with the emulator's app/icon.png.

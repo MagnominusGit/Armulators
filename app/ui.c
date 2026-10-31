@@ -1,8 +1,7 @@
 /* Copyright (c) 2026 Magnominus
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * SPDX-License-Identifier: GPL-3.0-only
+ * Licensed under the GNU General Public License, version 3: see LICENSE. */
 
 // The menus, messages and on-screen keyboard, drawn over the game. Every menu is built again each
 // frame from the settings it shows, so it is never out of date; only a folder's listing is kept, read

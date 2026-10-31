@@ -2,9 +2,8 @@
 
 # Copyright (c) 2026 Magnominus
 #
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# SPDX-License-Identifier: GPL-3.0-only
+# Licensed under the GNU General Public License, version 3: see LICENSE.
 
 # build.sh [emulator]: builds build-android/<name>-arm64.apk in the emulator's folder (by default the
 # one this is a submodule of): SDL2 and its standalone app with the core for arm64-v8a with the NDK,
