@@ -17,4 +17,4 @@ target_link_libraries(core_libretro PRIVATE armulators-libretro)
 target_link_options(core_libretro PRIVATE -Wl,--version-script=${ARMULATORS_LINK_SCRIPT})
 ```
 
-Licensed under the GNU General Public License, version 3 (`LICENSE`), except `libretro/libretro.h` (MIT, its own header).
+Licensed under the GNU General Public License, version 2 or (at your option) any later version (`LICENSE`), except `libretro/libretro.h` (MIT, its own header).
