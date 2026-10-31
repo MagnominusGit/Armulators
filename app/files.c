@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Magnominus
  *
- * SPDX-License-Identifier: GPL-3.0-only
- * Licensed under the GNU General Public License, version 3: see LICENSE. */
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ * Licensed under the GNU General Public License, version 2 or (at your option) any later version: see LICENSE. */
 
 // Whole files: games, also out of a .zip or .7z, and saves and states, written so that one cut off
 // leaves the old file whole.

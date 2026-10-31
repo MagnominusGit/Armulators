@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Magnominus
  *
- * SPDX-License-Identifier: GPL-3.0-only
- * Licensed under the GNU General Public License, version 3: see LICENSE. */
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ * Licensed under the GNU General Public License, version 2 or (at your option) any later version: see LICENSE. */
 
 // armgba, armGBA's own frontend: what its files share. main.c runs the core; settings.c keeps the
 // frontend's settings and the core's options; ui.c draws the menus and messages; play.c has save

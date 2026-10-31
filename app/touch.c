@@ -1,8 +1,8 @@
 /*
  * Copyright (c) 2026 Magnominus
  *
- * SPDX-License-Identifier: GPL-3.0-only
- * Licensed under the GNU General Public License, version 3: see LICENSE.
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ * Licensed under the GNU General Public License, version 2 or (at your option) any later version: see LICENSE.
  */
 
 // On-Screen Controls (Android): a controller of their own, one of SDL's virtual joysticks, played by

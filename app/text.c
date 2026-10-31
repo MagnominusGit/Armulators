@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Magnominus
  *
- * SPDX-License-Identifier: GPL-3.0-only
- * Licensed under the GNU General Public License, version 3: see LICENSE. */
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ * Licensed under the GNU General Public License, version 2 or (at your option) any later version: see LICENSE. */
 
 // Text: Inter for the menus and Chakra Petch for titles (frontend/fonts, LICENSES/OFL-1.1.txt,
 // built in by fonts/embed.cmake), rasterized by stb_truetype at the exact size asked for, so it is

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Magnominus
 #
-# SPDX-License-Identifier: GPL-3.0-only
-# Licensed under the GNU General Public License, version 3: see LICENSE.
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Licensed under the GNU General Public License, version 2 or (at your option) any later version: see LICENSE.
 
 # The machine the AppImages are built on: Debian 11, whose glibc is old enough that they run on
 # glibc 2.29 or later. Debian 11's packages are now on Debian's archive.

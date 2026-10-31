@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Magnominus
  *
- * SPDX-License-Identifier: GPL-3.0-only
- * Licensed under the GNU General Public License, version 3: see LICENSE. */
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ * Licensed under the GNU General Public License, version 2 or (at your option) any later version: see LICENSE. */
 
 // What a core's own app adds to the shared one, where libretro's interface can't say it: its own
 // ways of drawing the picture, rows in the menus and settings. Each may be NULL; the app then does

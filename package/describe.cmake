@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Magnominus
 #
-# SPDX-License-Identifier: GPL-3.0-only
-# Licensed under the GNU General Public License, version 3: see LICENSE.
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Licensed under the GNU General Public License, version 2 or (at your option) any later version: see LICENSE.
 
 # cmake -DDESCRIPTOR=app.cmake -DOUT=file [-DIN=template] -P describe.cmake: an emulator's app.cmake
 # written into a template, or, without one, as shell lines (KEY='value') for the package scripts.

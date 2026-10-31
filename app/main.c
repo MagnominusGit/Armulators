@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Magnominus
  *
- * SPDX-License-Identifier: GPL-3.0-only
- * Licensed under the GNU General Public License, version 3: see LICENSE. */
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ * Licensed under the GNU General Public License, version 2 or (at your option) any later version: see LICENSE. */
 
 // armgba: the libretro core linked into an SDL2 program, with a window, sound, the keyboard, game
 // controllers and the mouse. A game is named on the command line, dropped on the window or picked
