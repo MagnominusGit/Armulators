@@ -88,6 +88,11 @@ function(armulators_app TARGET)
 			"Left Stick Up" "Left Stick Down" "Left Stick Left" "Left Stick Right"
 			"Right Stick Up" "Right Stick Down" "Right Stick Left" "Right Stick Right")
 	endif()
+	# The face buttons and shoulders first, then the turbo buttons and extra shoulders.
+	if(NOT APP_BUTTON_ORDER)
+		set(APP_BUTTON_ORDER 8 0 10 11 3 2 4 5 6 7 9 1 12 13 14 15)
+	endif()
+	list(JOIN APP_BUTTON_ORDER ", " APP_BUTTON_ORDER_LIST)
 	set(APP_BUTTON_NAME_LIST "")
 	foreach(name IN LISTS APP_BUTTON_NAMES)
 		if(name STREQUAL "-")

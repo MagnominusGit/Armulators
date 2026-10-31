@@ -1032,9 +1032,8 @@ static void resetControls(int argument, int delta) {
 	}
 }
 
-// The buttons as listed: the face buttons and shoulders first, then the turbo buttons and extra
-// shoulders.
-static const int buttonOrder[BUTTONS] = { BUTTON_A, BUTTON_B, 10, 11, 3, 2, 4, 5, 6, 7, 9, 1, 12, 13, 14, 15 };
+// The buttons as listed (app.cmake).
+static const int buttonOrder[BUTTONS] = { APP_BUTTON_ORDER };
 
 // Fast-Forward and Rewind work while held.
 static const char* hotkeyHelp(int action, bool controller) {

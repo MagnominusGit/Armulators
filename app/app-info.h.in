@@ -34,6 +34,8 @@
 #define APP_KEYS @APP_KEY_LIST@
 #define APP_STICK_KEYS @APP_STICK_KEYS@
 #define APP_BUTTON_NAMES @APP_BUTTON_NAME_LIST@
+// The order the buttons are listed in, by libretro's numbers.
+#define APP_BUTTON_ORDER @APP_BUTTON_ORDER_LIST@
 // Help texts that name the console's buttons and what the app draws over its picture.
 #define APP_HELP_SWAP "@APP_HELP_SWAP@"
 #define APP_HELP_SHADERS "@APP_HELP_SHADERS@"
