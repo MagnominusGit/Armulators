@@ -17,3 +17,6 @@ get_directory_property(ARMULATORS_PARENT PARENT_DIRECTORY)
 if(ARMULATORS_PARENT)
 	set(ARMULATORS_LINK_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/libretro/link.T PARENT_SCOPE)
 endif()
+
+# The standalone app, for an emulator to build with armulators_app() (app/app.cmake).
+include(app/app.cmake)

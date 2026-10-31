@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=@APP_NAME@
+Comment=@APP_COMMENT@
+Exec=@APP_ID@ %f
+Icon=@APP_ID@
+Terminal=false
+Categories=Game;Emulator;
+MimeType=@APP_MIME_LIST@;
