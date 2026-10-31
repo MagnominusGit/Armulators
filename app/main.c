@@ -330,6 +330,9 @@ static bool environment(unsigned command, void* data) {
 	case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_UPDATE_DISPLAY_CALLBACK:
 		updateShown = data ? ((const struct retro_core_options_update_display_callback*) data)->callback : NULL;
 		return true;
+	case RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME:
+		app.noGame = *(const bool*) data;
+		return true;
 	// What this frontend has no use for, accepted.
 	case RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS:
 	case RETRO_ENVIRONMENT_SET_SUBSYSTEM_INFO:
@@ -944,6 +947,10 @@ void unloadGame(void) {
 // Starts the core with no game: a Game Boy Advance with no cartridge, waiting for a single-pak game
 // another console sends over the link cable. Nothing is read or written for it.
 bool loadNoCartridge(void) {
+	if (!app.noGame) {
+		osd(APP_NAME " can't start without a game");
+		return false;
+	}
 	unloadGame();
 	retro_set_environment(environment);
 	retro_init();

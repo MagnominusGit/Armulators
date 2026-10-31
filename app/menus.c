@@ -1688,7 +1688,9 @@ static void netplayMenu(void) {
 	addFoundHosts();
 	addChoice("Join a Host...", settings.host, netAction, 3);
 	helpFor("The host's name or address, with :port if it isn't the usual one.");
-	addSaveManager();
+	if (app.noGame) {
+		addSaveManager();
+	}
 	addNetplayLink();
 	addHeader("Settings");
 	addChoice("Your Name", settings.nickname, netAction, 0);
@@ -1700,8 +1702,10 @@ static void netplayMenu(void) {
 	snprintf(text, sizeof(text), "%d %s", settings.inputDelay, frames(settings.inputDelay));
 	addValue("Input Delay", text, changeSetting, SET_INPUT_DELAY);
 	helpFor("How long buttons wait in Off and Together; more suits a slow network.");
-	addValue("Your Cartridge", joinNoCartridge ? "Removed" : "Inserted", netAction, 7);
-	helpFor("Removed: joins with no game, for a single-pak game. Needs Link Mode Separate.");
+	if (app.noGame) {
+		addValue("Your Cartridge", joinNoCartridge ? "Removed" : "Inserted", netAction, 7);
+		helpFor("Removed: joins with no game, for a single-pak game. Needs Link Mode Separate.");
+	}
 	// A joining device's own choice for when the session ends.
 	for (int i = 0; i < optionCount; ++i) {
 		if (!strcmp(options[i].key, APP_ID "_keep_progress")) {

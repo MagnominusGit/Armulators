@@ -198,6 +198,8 @@ struct App {
 	bool loaded;
 	// The core saves states (its state size isn't 0), which states, rewind, run-ahead and netplay need.
 	bool states;
+	// The core starts with no game (Save Manager, single-pak link play), and started so.
+	bool noGame;
 	// The core started with no game, a Game Boy Advance with its cartridge out.
 	bool noCartridge;
 	// The game ran a session this device joined in Off or Together, the host's game, so no state of it
