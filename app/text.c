@@ -12,6 +12,7 @@
 #include "frontend.h"
 #include "text.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
