@@ -398,7 +398,7 @@ static bool linkMode(const char* mode) {
 		return false;
 	}
 	setOption(APP_ID "_link_mode", mode);
-	retro_reset();
+	resetGame();
 	netGameStarted();
 	return true;
 }
@@ -1433,7 +1433,7 @@ static void clientWelcome(const uint8_t* p, size_t size) {
 	}
 	connections[0].welcomed = true;
 	if (netTogether) {
-		retro_reset();
+		resetGame();
 		netGameStarted();
 		// Every device runs every console, so on the same firmware: the host's Nintendo BIOS or boot
 		// ROM must be in this device's system folder too. It is never sent.

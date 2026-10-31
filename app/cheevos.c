@@ -373,7 +373,7 @@ static void event(const rc_client_event_t* e, rc_client_t* from) {
 		osd("Leaderboard: %s, %s", e->leaderboard->title, e->leaderboard->tracker_value ? e->leaderboard->tracker_value : "sent");
 		break;
 	case RC_CLIENT_EVENT_RESET:
-		retro_reset();
+		resetGame();
 		netGameStarted();
 		osd("Hardcore mode: the game started again");
 		break;

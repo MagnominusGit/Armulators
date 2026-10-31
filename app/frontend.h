@@ -248,6 +248,18 @@ void writeSaves(void);
 // The loaded game's save file, game.srm, or its clock's, game.rtc.
 void savePath(char out[FILE_SIZE], const char* extension);
 void runFrames(void);
+void resetGame(void);
+// A core drawing with the GPU (hw.c): the context it should ask for, its asking, the context and
+// framebuffer made once the game has loaded (false if they can't be) and dropped, the context current
+// while the core runs (nested), whether there is one, and a frame it drew, read back.
+bool hwPreferred(unsigned* type);
+bool hwAsk(struct retro_hw_render_callback* callback);
+bool hwStart(const struct retro_game_geometry* geometry);
+void hwStop(void);
+void hwBegin(void);
+void hwEnd(void);
+bool hwRunning(void);
+const void* hwRead(unsigned width, unsigned height);
 void setPadForPort(void);
 void swapPlayers(int a, int b);
 const char* playerPadName(int port);

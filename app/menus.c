@@ -67,7 +67,7 @@ static void undoLoad(int argument, int delta) {
 static void restart(int argument, int delta) {
 	(void) argument;
 	if (!delta && !netRunning()) {
-		retro_reset();
+		resetGame();
 		netGameStarted();
 		cheevosReset();
 		uiCloseMenu();

@@ -330,6 +330,12 @@ static bool environment(unsigned command, void* data) {
 	case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_UPDATE_DISPLAY_CALLBACK:
 		updateShown = data ? ((const struct retro_core_options_update_display_callback*) data)->callback : NULL;
 		return true;
+	case RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER:
+		return hwPreferred(data);
+	case RETRO_ENVIRONMENT_SET_HW_RENDER:
+		return hwAsk(data);
+	case RETRO_ENVIRONMENT_SET_HW_SHARED_CONTEXT:
+		return true;
 	case RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME:
 		app.noGame = *(const bool*) data;
 		return true;
@@ -413,16 +419,31 @@ static void makeGameTexture(unsigned width, unsigned height) {
 // Frames the core has drawn, for the frame rate shown.
 static unsigned framesDrawn;
 
-// The core's picture: to the game's texture, and kept for screenshots and the pixel shadow.
+// The core's picture: to the game's texture, and kept for screenshots and recording.
+static void takePicture(const void* data, unsigned width, unsigned height, size_t pitch);
+
 static void videoRefresh(const void* data, unsigned width, unsigned height, size_t pitch) {
 	// No picture: the last one stays. While a frame is run again, nothing is shown.
 	if (!(app.avEnable & RETRO_AV_ENABLE_VIDEO)) {
 		return;
 	}
 	++framesDrawn;
-	if (!data) {
+	if (data != RETRO_HW_FRAME_BUFFER_VALID) {
+		if (data) {
+			takePicture(data, width, height, pitch);
+		}
 		return;
 	}
+	// A frame the core drew on the GPU, read back; the renderer's context is current for its texture.
+	data = hwRead(width, height);
+	if (data) {
+		hwEnd();
+		takePicture(data, width, height, width * 4);
+		hwBegin();
+	}
+}
+
+static void takePicture(const void* data, unsigned width, unsigned height, size_t pitch) {
 	if (!app.game || (int) width != app.gameWidth || (int) height != app.gameHeight || pitch != app.picturePitch) {
 		makeGameTexture(width, height);
 		free(app.picture);
@@ -938,7 +959,9 @@ void unloadGame(void) {
 	cheevosUnloadGame();
 	writeSaves();
 	undoForget();
+	hwBegin();
 	retro_unload_game();
+	hwStop();
 	retro_deinit();
 	app.loaded = false;
 	app.noCartridge = false;
@@ -1025,6 +1048,13 @@ bool loadGame(const char* path) {
 	struct retro_system_av_info av;
 	retro_get_system_av_info(&av);
 	app.geometry = av.geometry;
+	if (!hwStart(&av.geometry)) {
+		retro_unload_game();
+		retro_deinit();
+		free(data);
+		app.gameData = NULL;
+		return false;
+	}
 	snprintf(app.gamePath, sizeof(app.gamePath), "%s", path);
 	const char* base = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
 	snprintf(app.gameName, sizeof(app.gameName), "%s", base);
@@ -1181,8 +1211,16 @@ static void sendSound(void) {
 	frameSoundCount = 0;
 }
 
+// Starts the game again, as its reset button does.
+void resetGame(void) {
+	hwBegin();
+	retro_reset();
+	hwEnd();
+}
+
 // One frame of the game as it should run now: through netplay, rewinding, with run-ahead, or plainly.
 void runFrames(void) {
+	hwBegin();
 	if (netRunning()) {
 		netFrame();
 	} else if (app.rewinding) {
@@ -1198,6 +1236,7 @@ void runFrames(void) {
 		rewindPush();
 	}
 	cheevosFrame();
+	hwEnd();
 	sendSound();
 }
 
@@ -1272,7 +1311,7 @@ static void doAction(enum Action action) {
 		break;
 	case ACT_RESET:
 		if (!netRunning()) {
-			retro_reset();
+			resetGame();
 			netGameStarted();
 			cheevosReset();
 			osd("Restarted");
