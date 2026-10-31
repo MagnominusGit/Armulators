@@ -53,6 +53,7 @@ void settingsDefaults(void) {
 	settings.inputDelay = 1;
 	settings.menuSize = 120;
 	settings.dim = 1;
+	settings.accent = accentDefault();
 	snprintf(settings.nickname, sizeof(settings.nickname), "Player");
 	// mGBA's keys; C and V are the turbo buttons, 1 to 4 L2 to R3.
 	static const SDL_Scancode keys[BUTTONS] = {
@@ -195,7 +196,7 @@ static void takeSetting(const char* key, const char* value) {
 	} else if (!strcmp(key, "hardcore")) {
 		settings.hardcore = yes;
 	} else if (!strcmp(key, "ui_accent")) {
-		settings.accent = n >= 0 && n < ACCENTS ? n : 0;
+		settings.accent = n >= 0 && n < ACCENTS ? n : accentDefault();
 	} else if (!strcmp(key, "ui_menu_size")) {
 		settings.menuSize = n < 100 ? 100 : n > 160 ? 160 : n;
 	} else if (!strcmp(key, "ui_size")) {

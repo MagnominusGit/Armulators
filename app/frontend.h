@@ -65,6 +65,8 @@ enum Filter {
 
 // The menus' accent colors.
 enum { ACCENTS = 7 };
+// The descriptor's accent color (APP_ACCENT), the default, as its number.
+int accentDefault(void);
 
 // A controller binding: a button, or a trigger past half way.
 enum {

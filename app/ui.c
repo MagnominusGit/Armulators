@@ -518,6 +518,15 @@ const struct Accent accents[ACCENTS] = {
 	{ "Green", { 116, 222, 152, 255 }, { 36, 146, 88, 255 }, { 40, 94, 66, 255 } },
 	{ "Teal", { 96, 214, 222, 255 }, { 22, 136, 148, 255 }, { 30, 90, 100, 255 } },
 };
+int accentDefault(void) {
+	for (int i = 0; i < ACCENTS; ++i) {
+		if (!strcmp(accents[i].name, APP_ACCENT)) {
+			return i;
+		}
+	}
+	return 0;
+}
+
 const struct MenuSize menuSizes[MENU_SIZES] = { { "Small", 100 }, { "Normal", 120 }, { "Large", 140 }, { "Larger", 160 } };
 const char* const dims[3] = { "Light", "Medium", "Dark" };
 // Dark enough, as the menus' own background, for their text to read over a bright game.

@@ -12,6 +12,8 @@
 #define APP_ID "@APP_ID@"
 #define APP_NAME "@APP_NAME@"
 #define APP_WORDMARK "@APP_WORDMARK@"
+// The menus' accent color unless one is chosen: a name from ui.c's list.
+#define APP_ACCENT "@APP_ACCENT@"
 // The Java classes' path for JNI, from the package.
 #define APP_JAVA_PATH "@APP_JAVA_PATH@"
 #define APP_JAVA_CLASS "@APP_JAVA_CLASS@"
