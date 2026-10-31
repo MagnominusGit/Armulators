@@ -38,6 +38,11 @@ static void resume(int argument, int delta) {
 	}
 }
 
+// A game is loaded whose core saves no states: their rows, rewind's, run-ahead's and netplay's go.
+static bool noStates(void) {
+	return app.loaded && !app.states;
+}
+
 // State Slot: left and right, or choosing it, change the slot Save State and Load State use.
 static void stateSlot(int argument, int delta) {
 	(void) argument;
@@ -987,6 +992,9 @@ static void gameplayMenu(void) {
 	snprintf(text, sizeof(text), settings.fastForward ? "%dx" : "Max", settings.fastForward);
 	addValue("Fast-Forward Speed", text, changeSetting, SET_FAST_FORWARD);
 	helpFor("How fast the Fast-Forward hotkey runs the game; Max is up to 12x.");
+	if (noStates()) {
+		return;
+	}
 	addValue("Rewind", onOff(settings.rewind), changeSetting, SET_REWIND);
 	helpFor("Goes back in time while the Rewind hotkey is held.");
 	snprintf(text, sizeof(text), "%d MB", settings.rewindMegabytes);
@@ -1405,9 +1413,11 @@ static void addFolder(int which) {
 
 static void foldersMenu(void) {
 	foldersFill();
-	addHeader("Saves");
-	addValue("Auto Save State", onOff(settings.autoState), changeSetting, SET_AUTO_STATE);
-	helpFor("Saves a state when the game closes and loads it when the game starts again.");
+	if (!noStates()) {
+		addHeader("Saves");
+		addValue("Auto Save State", onOff(settings.autoState), changeSetting, SET_AUTO_STATE);
+		helpFor("Saves a state when the game closes and loads it when the game starts again.");
+	}
 	addHeader("Game Folders");
 	for (int i = FOLDER_GAMES; i < FOLDER_BIOS; ++i) {
 		addFolder(i);
@@ -1859,16 +1869,18 @@ static void gameTab(void) {
 	asGame();
 	addItem("Resume", resume, 0);
 	helpFor("Back to the game.");
-	snprintf(text, sizeof(text), stateExists(app.slot) ? "%d" : "%d \xC2\xB7 Empty", app.slot);
-	addValue("State Slot", text, stateSlot, 0);
-	asState();
-	helpFor("The slot Save State and Load State use, 0 to 99.");
-	addItem("Save State", stateItem, 0);
-	asState();
-	helpFor("Saves the game as it is now in the slot.");
-	addItem("Load State", stateItem, 1);
-	asState();
-	helpFor("Goes back to the state in the slot. Undo Load State brings back what you had.");
+	if (app.states) {
+		snprintf(text, sizeof(text), stateExists(app.slot) ? "%d" : "%d \xC2\xB7 Empty", app.slot);
+		addValue("State Slot", text, stateSlot, 0);
+		asState();
+		helpFor("The slot Save State and Load State use, 0 to 99.");
+		addItem("Save State", stateItem, 0);
+		asState();
+		helpFor("Saves the game as it is now in the slot.");
+		addItem("Load State", stateItem, 1);
+		asState();
+		helpFor("Goes back to the state in the slot. Undo Load State brings back what you had.");
+	}
 	if (canUndoLoad()) {
 		addItem("Undo Load State", undoLoad, 0);
 		helpFor("Goes back to the game as it was before the last state loaded.");
@@ -1891,8 +1903,10 @@ static void gameTab(void) {
 
 // Extras: netplay and RetroAchievements.
 static void extrasTab(void) {
-	addItem("Netplay...", openNetplay, 0);
-	helpFor("Playing with other devices over the network: hosting, joining, and the link.");
+	if (!noStates()) {
+		addItem("Netplay...", openNetplay, 0);
+		helpFor("Playing with other devices over the network: hosting, joining, and the link.");
+	}
 	addItem("Achievements...", openCheevos, 0);
 	helpFor("RetroAchievements: log in, hardcore mode, and this game's achievements.");
 }

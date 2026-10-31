@@ -111,6 +111,10 @@ bool undoLoadState(void) {
 // Save State and Load State, from the menu or a hotkey, for the slot chosen. Not in hardcore mode,
 // and not during netplay, where every device must run the same game.
 bool stateCommand(bool load) {
+	if (!app.states) {
+		osd(APP_NAME " can't save states yet");
+		return false;
+	}
 	if (cheevosHardcore()) {
 		osd("Hardcore mode: save states are off");
 		return false;
@@ -189,7 +193,7 @@ void rewindReset(void) {
 	entries = NULL;
 	stateNow = stateNew = packed = NULL;
 	entryCount = entryFirst = ringAt = 0;
-	if (!settings.rewind || !app.loaded) {
+	if (!settings.rewind || !app.loaded || !app.states) {
 		return;
 	}
 	size_t const size = retro_serialize_size();

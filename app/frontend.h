@@ -196,6 +196,8 @@ struct App {
 	// The game's texture scales smoothly (the Smooth filter), as it was made.
 	bool gameSmooth;
 	bool loaded;
+	// The core saves states (its state size isn't 0), which states, rewind, run-ahead and netplay need.
+	bool states;
 	// The core started with no game, a Game Boy Advance with its cartridge out.
 	bool noCartridge;
 	// The game ran a session this device joined in Off or Together, the host's game, so no state of it

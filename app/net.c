@@ -868,6 +868,10 @@ bool netHost(const char* link) {
 	if (!app.loaded) {
 		return false;
 	}
+	if (!app.states) {
+		osd("Netplay: " APP_NAME " can't save states yet, which netplay needs");
+		return false;
+	}
 	if (!separate && !oneConsole && strcmp(mode, "together")) {
 		osd("Netplay: Link Mode can be Off, Together or Separate");
 		return false;

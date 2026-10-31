@@ -919,7 +919,7 @@ void unloadGame(void) {
 	app.hostsGame = false;
 	recordStop();
 	app.fastForwardOn = false;
-	if (settings.autoState && !cheevosHardcore() && !app.noCartridge && !hostsGame) {
+	if (settings.autoState && app.states && !cheevosHardcore() && !app.noCartridge && !hostsGame) {
 		saveState(-1);
 	}
 	cheevosUnloadGame();
@@ -1022,6 +1022,7 @@ bool loadGame(const char* path) {
 		*slash = '\0';
 	}
 	app.loaded = true;
+	app.states = retro_serialize_size() > 0;
 	app.paused = false;
 	netGameStarted();
 	readSave(RETRO_MEMORY_SAVE_RAM, 0, "srm");
@@ -1030,7 +1031,7 @@ bool loadGame(const char* path) {
 	cheatListApply();
 	rewindReset();
 	cheevosLoadGame();
-	if (settings.autoState && !cheevosHardcore() && stateExists(-1)) {
+	if (settings.autoState && app.states && !cheevosHardcore() && stateExists(-1)) {
 		loadState(-1);
 		undoForget();
 	}
@@ -1171,7 +1172,7 @@ void runFrames(void) {
 		if (!rewindStep()) {
 			app.rewinding = false;
 		}
-	} else if (settings.runahead && !cheevosHardcore()) {
+	} else if (settings.runahead && app.states && !cheevosHardcore()) {
 		runAheadFrame();
 	} else {
 		retro_run();
@@ -1304,7 +1305,7 @@ static void handleEvent(const SDL_Event* given) {
 	// Android may end an app it has sent to the background without a word, so its save, and the state
 	// when Save and Load State on Exit and Start is on, are written as on quitting.
 	case SDL_APP_WILLENTERBACKGROUND:
-		if (app.loaded && settings.autoState && !cheevosHardcore() && !netInHostsGame() && !app.hostsGame) {
+		if (app.loaded && settings.autoState && app.states && !cheevosHardcore() && !netInHostsGame() && !app.hostsGame) {
 			saveState(-1);
 		}
 		writeSaves();
@@ -1536,7 +1537,7 @@ int main(int argc, char** argv) {
 			handleEvent(&event);
 		}
 		app.fastForward = actionHeld(ACT_FAST_FORWARD) || app.fastForwardOn || coreFastForward;
-		app.rewinding = settings.rewind && !cheevosHardcore() && !netRunning() && actionHeld(ACT_REWIND);
+		app.rewinding = settings.rewind && app.states && !cheevosHardcore() && !netRunning() && actionHeld(ACT_REWIND);
 		cheevosIdle();
 		netScanIdle();
 		// Paused, in the menus or without a game: only the picture. Netplay runs on behind the menus.
