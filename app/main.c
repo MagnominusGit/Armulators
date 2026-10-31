@@ -748,6 +748,16 @@ static int16_t inputState(unsigned port, unsigned device, unsigned index, unsign
 		uint16_t const bits = netRunning() ? netInput(port, id) : localButtons(port);
 		return (bits >> id) & 1;
 	}
+	// A stick's keys, held, push it all the way.
+	if (APP_STICK_KEYS && device == RETRO_DEVICE_ANALOG && port == 0 && !app.menuOpen && !netRunning() &&
+	    index <= RETRO_DEVICE_INDEX_ANALOG_RIGHT && id <= RETRO_DEVICE_ID_ANALOG_Y) {
+		const Uint8* const keys = SDL_GetKeyboardState(NULL);
+		int const at = BUTTONS + (int) index * 4 + (id == RETRO_DEVICE_ID_ANALOG_Y ? 0 : 2);
+		bool const less = settings.keys[at] && keys[settings.keys[at]], more = settings.keys[at + 1] && keys[settings.keys[at + 1]];
+		if (less != more) {
+			return less ? -32767 : 32767;
+		}
+	}
 	SDL_GameController* pad = app.pads[port];
 	if (device == RETRO_DEVICE_ANALOG && pad && !app.menuOpen && !netRunning() && index <= RETRO_DEVICE_INDEX_ANALOG_RIGHT &&
 	    id <= RETRO_DEVICE_ID_ANALOG_Y) {

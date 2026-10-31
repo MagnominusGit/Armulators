@@ -1058,6 +1058,9 @@ static void padControlsMenu(void) {
 	addHeader("Buttons");
 	for (int k = 0; k < BUTTONS; ++k) {
 		int const i = buttonOrder[k];
+		if (!buttonNames[i]) {
+			continue;
+		}
 		addChoice(buttonNames[i], padName(settings.pad[i]), bind, 1000 + i);
 		helpFor(i == BUTTON_A ? "A also chooses in these menus." : i == BUTTON_B ? "B also goes back in these menus." : NULL);
 	}
@@ -1076,7 +1079,15 @@ static void keyControlsMenu(void) {
 	addHeader("Buttons");
 	for (int k = 0; k < BUTTONS; ++k) {
 		int const i = buttonOrder[k];
-		addChoice(buttonNames[i], scancodeName(settings.keys[i]), bind, i);
+		if (buttonNames[i]) {
+			addChoice(buttonNames[i], scancodeName(settings.keys[i]), bind, i);
+		}
+	}
+	if (APP_STICK_KEYS) {
+		addHeader("Sticks");
+		for (int i = BUTTONS; i < KEYS; ++i) {
+			addChoice(buttonNames[i], scancodeName(settings.keys[i]), bind, i);
+		}
 	}
 	addHeader("Hotkeys");
 	for (int i = 0; i < ACTIONS; ++i) {

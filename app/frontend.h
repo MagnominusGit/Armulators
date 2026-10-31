@@ -27,6 +27,10 @@ enum {
 	// The systems the app's games are for (app.cmake).
 	CONSOLES = APP_SYSTEM_COUNT,
 	BUTTONS = 16,
+	// The keyboard's too: up, down, left and right of the left stick, then of the right one, when
+	// app.cmake gives them keys.
+	STICK_KEYS = 8,
+	KEYS = BUTTONS + STICK_KEYS,
 	// In libretro's order: B is the first button, A the ninth.
 	BUTTON_B = 0,
 	BUTTON_A = 8,
@@ -91,7 +95,7 @@ struct Settings {
 	bool rewind;
 	int rewindMegabytes;
 	bool autoState;
-	SDL_Scancode keys[BUTTONS];
+	SDL_Scancode keys[KEYS];
 	int pad[BUTTONS];
 	SDL_Scancode hotkeys[ACTIONS];
 	// A controller's hotkeys: the Hotkey held with each action's own button, as on ROCKNIX.
@@ -162,7 +166,8 @@ extern int categoryCount;
 extern bool optionsChanged;
 
 extern const char* actionNames[ACTIONS];
-extern const char* buttonNames[BUTTONS];
+// The buttons' and stick keys' names, NULL for those the core doesn't use (app.cmake).
+extern const char* const buttonNames[KEYS];
 
 // Directories, made at start.
 extern char configDirectory[PATH_SIZE];

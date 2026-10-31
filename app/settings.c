@@ -27,9 +27,7 @@ const char* actionNames[ACTIONS] = {
 	"Screenshot", "Record", "Full Screen", "Restart", "Quit", "Show Frame Rate",
 };
 
-const char* buttonNames[BUTTONS] = {
-	"B", "Turbo B", "Select", "Start", "Up", "Down", "Left", "Right", "A", "Turbo A", "L", "R", "L2", "R2", "L3", "R3",
-};
+const char* const buttonNames[KEYS] = { APP_BUTTON_NAMES };
 
 // Values read from the files before the core names its options.
 static char* savedKeys[OPTIONS_MAX];
@@ -55,12 +53,7 @@ void settingsDefaults(void) {
 	settings.dim = 1;
 	settings.accent = accentDefault();
 	snprintf(settings.nickname, sizeof(settings.nickname), "Player");
-	// mGBA's keys; C and V are the turbo buttons, 1 to 4 L2 to R3.
-	static const SDL_Scancode keys[BUTTONS] = {
-		SDL_SCANCODE_Z, SDL_SCANCODE_C, SDL_SCANCODE_BACKSPACE, SDL_SCANCODE_RETURN, SDL_SCANCODE_UP, SDL_SCANCODE_DOWN,
-		SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT, SDL_SCANCODE_X, SDL_SCANCODE_V, SDL_SCANCODE_A, SDL_SCANCODE_S,
-		SDL_SCANCODE_1, SDL_SCANCODE_2, SDL_SCANCODE_3, SDL_SCANCODE_4,
-	};
+	static const SDL_Scancode keys[KEYS] = { APP_KEYS };
 	// Libretro's A is the right face button and B the bottom one, as on a Game Boy; SDL names them
 	// by an Xbox pad's labels.
 	static const int pad[BUTTONS] = {
@@ -234,7 +227,7 @@ static void takeSetting(const char* key, const char* value) {
 		settings.padHotkey = n;
 	} else if (!strncmp(key, "key_", 4) || !strncmp(key, "pad_", 4) || !strncmp(key, "hotkey_", 7) || !strncmp(key, "hotkeypad_", 10)) {
 		int const index = atoi(strrchr(key, '_') + 1);
-		if (!strncmp(key, "key_", 4) && index >= 0 && index < BUTTONS) {
+		if (!strncmp(key, "key_", 4) && index >= 0 && index < (APP_STICK_KEYS ? KEYS : BUTTONS)) {
 			settings.keys[index] = (SDL_Scancode) n;
 		} else if (!strncmp(key, "pad_", 4) && index >= 0 && index < BUTTONS) {
 			settings.pad[index] = n;
@@ -316,6 +309,9 @@ void settingsWrite(void) {
 	}
 	for (int i = 0; i < BUTTONS; ++i) {
 		fprintf(f, "key_%d = %d\npad_%d = %d\n", i, settings.keys[i], i, settings.pad[i]);
+	}
+	for (int i = BUTTONS; i < (APP_STICK_KEYS ? KEYS : BUTTONS); ++i) {
+		fprintf(f, "key_%d = %d\n", i, settings.keys[i]);
 	}
 	fprintf(f, "hotkeypad = %d\n", settings.padHotkey);
 	for (int i = 0; i < ACTIONS; ++i) {

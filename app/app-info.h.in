@@ -29,6 +29,11 @@
 #define APP_SYSTEM_KEYS @APP_SYSTEM_KEY_LIST@
 #define APP_SYSTEM_NAMES @APP_SYSTEM_NAME_LIST@
 #define APP_SYSTEM_FOLDERS @APP_SYSTEM_FOLDER_LIST@
+// The keyboard's default keys, and the buttons' names (NULL for those the core doesn't use), in
+// libretro's order, then the stick keys when app.cmake gives them.
+#define APP_KEYS @APP_KEY_LIST@
+#define APP_STICK_KEYS @APP_STICK_KEYS@
+#define APP_BUTTON_NAMES @APP_BUTTON_NAME_LIST@
 // Help texts that name the console's buttons and what the app draws over its picture.
 #define APP_HELP_SWAP "@APP_HELP_SWAP@"
 #define APP_HELP_SHADERS "@APP_HELP_SHADERS@"
