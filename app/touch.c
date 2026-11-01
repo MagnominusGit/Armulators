@@ -10,8 +10,9 @@
 // buttons, hotkeys and menus work with it as with any. Placed and named as on a Nintendo controller:
 // A on the right, B below, X above, Y on the left, L2 above L and R2 above R, the D-pad and the
 // buttons a little below half-way, where thumbs rest, the sticks below them and further in, and L3
-// and R3 in the lower corners. A tap at the top middle shows the menu button on any touch screen,
-// with the controls or without them.
+// and R3 in the lower corners. In a window taller than wide they sit a little higher, the sticks
+// clear of Select and Start at the bottom middle. A tap at the top middle shows the menu button on
+// any touch screen, with the controls or without them.
 
 #include "frontend.h"
 
@@ -52,9 +53,9 @@ enum { MENU_SHOWN_MS = 3000, MENU_SLIDE_MS = 220 };
 static Uint32 menuShownUntil;
 
 static int layout(struct Control out[CONTROLS], int width, int height) {
-	float const s = (float) SDL_min(width, height);
-	float const pad = 0.20f * s, low = height - 0.45f * s, face = 0.105f * s, round = 0.12f * s;
-	float const pillW = 0.26f * s, pillH = 0.08f * s, smallW = 0.15f * s, smallH = 0.06f * s, stickX = 0.34f * s, stickY = height - 0.17f * s, stick = 0.24f * s;
+	float const s = (float) SDL_min(width, height), lift = height > width ? 0.08f * s : 0;
+	float const pad = 0.20f * s, low = height - 0.45f * s - lift, face = 0.105f * s, round = 0.12f * s;
+	float const pillW = 0.26f * s, pillH = 0.08f * s, smallW = 0.15f * s, smallH = 0.06f * s, stickX = 0.34f * s, stickY = height - 0.17f * s - lift, stick = 0.24f * s;
 	float const top = 0.03f * s + pillH / 2, under = top + 0.10f * s, click = 0.085f * s;
 	struct Control const c[CONTROLS] = {
 		{ CROSS, SDL_CONTROLLER_BUTTON_DPAD_UP, NULL, pad, low, 0.30f * s, 0.30f * s },
