@@ -1164,9 +1164,9 @@ void applyWindowSize(void) {
 	SDL_SetWindowFullscreen(app.window, settings.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
 	if (!settings.fullscreen) {
 		// The console's screen times the window size, whatever the core's LCD Grid made the picture.
-		int const grid = appHooks.coreScale ? appHooks.coreScale() : 1;
-		int const w = app.loaded && app.geometry.base_width ? (int) app.geometry.base_width / grid : APP_WINDOW_WIDTH;
-		int const h = app.loaded && app.geometry.base_height ? (int) app.geometry.base_height / grid : APP_WINDOW_HEIGHT;
+		float const grid = appHooks.coreScale ? appHooks.coreScale() : 1;
+		int const w = app.loaded && app.geometry.base_width ? (int) lroundf(app.geometry.base_width / grid) : APP_WINDOW_WIDTH;
+		int const h = app.loaded && app.geometry.base_height ? (int) lroundf(app.geometry.base_height / grid) : APP_WINDOW_HEIGHT;
 		SDL_SetWindowSize(app.window, w * settings.scale, h * settings.scale);
 	}
 }

@@ -28,7 +28,7 @@ struct AppHooks {
 	void (*rendererGoing)(void);
 	// How many times larger the core makes its picture (its own effects); the window is sized for
 	// the console's screen.
-	int (*coreScale)(void);
+	float (*coreScale)(void);
 	// A core option's value as the core reads it; NULL keeps the option's own.
 	const char* (*optionRead)(const struct Option* option);
 	// Whether a core option's row shows, given whether the core shows it.
