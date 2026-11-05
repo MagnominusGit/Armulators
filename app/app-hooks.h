@@ -33,6 +33,8 @@ struct AppHooks {
 	const char* (*optionRead)(const struct Option* option);
 	// Whether a core option's row shows, given whether the core shows it.
 	bool (*optionShown)(const struct Option* option, bool shown);
+	// Rows after a core option's row, when it shows.
+	void (*optionRows)(const struct Option* option);
 	// Rows at the start of a group of core options (by its category key), and on General > Shaders
 	// after the filter.
 	void (*groupRows)(const char* category);

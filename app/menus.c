@@ -732,6 +732,9 @@ static void addOption(int i) {
 		addValue(o->description ? o->description : o->key, label, optionChange, i);
 	}
 	helpFor(o->info);
+	if (appHooks.optionRows) {
+		appHooks.optionRows(o);
+	}
 }
 
 // The visible core options in category, or those in none when category is NULL.
