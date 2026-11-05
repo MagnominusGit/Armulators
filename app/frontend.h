@@ -68,7 +68,7 @@ enum Filter {
 };
 
 // The menus' accent colors.
-enum { ACCENTS = 7 };
+enum { ACCENTS = 8 };
 // The descriptor's accent color (APP_ACCENT), the default, as its number.
 int accentDefault(void);
 
