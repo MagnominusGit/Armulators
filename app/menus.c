@@ -988,12 +988,14 @@ static void audioMenu(void) {
 // Fast-Forward and Rewind, as RetroArch's Frame Throttle, then Run-Ahead, as its Latency.
 static void gameplayMenu(void) {
 	char text[32];
+	addHeader("Fast-Forward");
 	snprintf(text, sizeof(text), settings.fastForward ? "%dx" : "Max", settings.fastForward);
 	addValue("Fast-Forward Speed", text, changeSetting, SET_FAST_FORWARD);
 	helpFor("How fast the Fast-Forward hotkey runs the game; Max is up to 12x.");
 	if (noStates()) {
 		return;
 	}
+	addHeader("Rewind");
 	addValue("Rewind", onOff(settings.rewind), changeSetting, SET_REWIND);
 	helpFor("Goes back in time while the Rewind hotkey is held.");
 	snprintf(text, sizeof(text), "%d MB", settings.rewindMegabytes);
