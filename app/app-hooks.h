@@ -35,10 +35,8 @@ struct AppHooks {
 	bool (*optionShown)(const struct Option* option, bool shown);
 	// Rows after a core option's row, when it shows.
 	void (*optionRows)(const struct Option* option);
-	// Rows at the start of a group of core options (by its category key), and on General > Shaders
-	// after the filter.
+	// Rows at the start of a group of core options (by its category key).
 	void (*groupRows)(const char* category);
-	void (*shaderRows)(void);
 	// The app's own settings in frontend.cfg: their defaults (at the start and on Reset All Settings),
 	// a line read (true when it was the hook's alone), and its lines, written after the filter's.
 	void (*settingsDefaults)(void);

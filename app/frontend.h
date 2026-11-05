@@ -63,6 +63,7 @@ enum Action {
 enum Filter {
 	FILTER_SHARP,
 	FILTER_SMOOTH,
+	FILTER_SHARP_SMOOTH,
 	FILTERS,
 };
 
@@ -240,6 +241,8 @@ bool loadNoCartridge(void);
 void unloadGame(void);
 void recreateRenderer(void);
 void applyWindowSize(void);
+// The game's picture drawn into to with the filter: Sharp Smooth scales it by whole numbers first.
+void drawPicture(SDL_Rect to);
 void refreshShownOptions(void);
 void chooseFolders(void);
 void chooseGameFolders(void);

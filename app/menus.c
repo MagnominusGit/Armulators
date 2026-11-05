@@ -961,21 +961,14 @@ static void videoMenu(void) {
 	helpFor("Scales by whole numbers only, so every pixel is the same size; leaves a border.");
 	addValue("Aspect Ratio", settings.stretch ? "Fill the Window" : "The Console's", changeSetting, SET_STRETCH);
 	helpFor("The Console's keeps the screen's shape; Fill the Window stretches it.");
+	static const char* const filters[FILTERS] = { "Sharp", "Smooth", "Sharp Smooth" };
+	addValue("Filter", filters[settings.filter], changeSetting, SET_FILTER);
+	helpFor("Sharp keeps pixels square; Smooth blends them; Sharp Smooth keeps them square and blends only their edges.");
 	addHeader("On-Screen Display");
 	addValue("Show Frame Rate", onOff(settings.showFps), changeSetting, SET_FPS);
 	helpFor("Frames a second, at the top right.");
 	addValue("Show Messages", onOff(settings.showMessages), changeSetting, SET_MESSAGES);
 	helpFor("The notes at the bottom left, such as a state saved or a controller connected.");
-}
-
-// General > Shaders: what the GPU does to the picture as it scales it, and any rows of the app's own.
-static void shadersMenu(void) {
-	static const char* const filters[FILTERS] = { "Sharp", "Smooth" };
-	addValue("Filter", filters[settings.filter], changeSetting, SET_FILTER);
-	helpFor("Sharp keeps pixels square; Smooth blends them.");
-	if (appHooks.shaderRows) {
-		appHooks.shaderRows();
-	}
 }
 
 static void audioMenu(void) {
@@ -1190,8 +1183,8 @@ static void appearanceMenu(void) {
 static void foldersMenu(void);
 
 static void openSettingsPage(int which, int delta) {
-	static void (*const pages[])(void) = { videoMenu, shadersMenu, audioMenu, controlsMenu, gameplayMenu, foldersMenu, appearanceMenu };
-	static const char* const titles[] = { "Video", "Shaders", "Audio", "Controls", "Fast-Forward and Rewind", "Saves and Folders", "Appearance" };
+	static void (*const pages[])(void) = { videoMenu, audioMenu, controlsMenu, gameplayMenu, foldersMenu, appearanceMenu };
+	static const char* const titles[] = { "Video", "Audio", "Controls", "Fast-Forward and Rewind", "Saves and Folders", "Appearance" };
 	if (!delta) {
 		pushMenu(pages[which], titles[which]);
 	}
@@ -1199,18 +1192,16 @@ static void openSettingsPage(int which, int delta) {
 
 static void addSettingsPages(void) {
 	addItem("Video...", openSettingsPage, 0);
-	helpFor("The window, VSync, scaling, and the frame rate and messages on screen.");
-	addItem("Shaders...", openSettingsPage, 1);
-	helpFor(APP_HELP_SHADERS);
-	addItem("Audio...", openSettingsPage, 2);
+	helpFor("The window, VSync, scaling, the filter, and the frame rate and messages on screen.");
+	addItem("Audio...", openSettingsPage, 1);
 	helpFor("The volume, and how long sound waits to play.");
-	addItem("Controls...", openSettingsPage, 3);
+	addItem("Controls...", openSettingsPage, 2);
 	helpFor("Buttons and hotkeys for controllers and the keyboard, and Swap A/B and X/Y.");
-	addItem("Fast-Forward and Rewind...", openSettingsPage, 4);
+	addItem("Fast-Forward and Rewind...", openSettingsPage, 3);
 	helpFor("Fast-forward's speed, going back in time, and Run-Ahead, which answers the buttons sooner.");
-	addItem("Saves and Folders...", openSettingsPage, 5);
+	addItem("Saves and Folders...", openSettingsPage, 4);
 	helpFor("Saving a state on exit, and where games, BIOS files, saves, states and screenshots are.");
-	addItem("Appearance...", openSettingsPage, 6);
+	addItem("Appearance...", openSettingsPage, 5);
 	helpFor("The menus' color and size, and how dark the game is behind them.");
 }
 

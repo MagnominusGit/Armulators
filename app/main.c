@@ -1095,6 +1095,37 @@ bool loadGame(const char* path) {
 
 // The picture.
 
+// Sharp Smooth's picture, scaled up by whole numbers, sharp, which the renderer then scales smoothly.
+static SDL_Texture* sharpTexture;
+static int sharpWidth, sharpHeight;
+
+void drawPicture(SDL_Rect to) {
+	int const times = SDL_max(1, SDL_min(to.w / app.gameWidth, to.h / app.gameHeight));
+	int const w = app.gameWidth * times, h = app.gameHeight * times;
+	if (settings.filter != FILTER_SHARP_SMOOTH || (to.w == w && to.h == h)) {
+		SDL_RenderCopy(app.renderer, app.game, NULL, &to);
+		return;
+	}
+	if (!sharpTexture || sharpWidth != w || sharpHeight != h) {
+		if (sharpTexture) {
+			SDL_DestroyTexture(sharpTexture);
+		}
+		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+		sharpTexture = SDL_CreateTexture(app.renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, w, h);
+		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
+		sharpWidth = w;
+		sharpHeight = h;
+	}
+	SDL_Texture* const target = SDL_GetRenderTarget(app.renderer);
+	if (!sharpTexture || SDL_SetRenderTarget(app.renderer, sharpTexture) != 0) {
+		SDL_RenderCopy(app.renderer, app.game, NULL, &to);
+		return;
+	}
+	SDL_RenderCopy(app.renderer, app.game, NULL, NULL);
+	SDL_SetRenderTarget(app.renderer, target);
+	SDL_RenderCopy(app.renderer, sharpTexture, NULL, &to);
+}
+
 static void present(void) {
 	SDL_SetRenderDrawColor(app.renderer, 0, 0, 0, 255);
 	SDL_RenderClear(app.renderer);
@@ -1129,7 +1160,7 @@ static void present(void) {
 		if (appHooks.pictureDraw) {
 			appHooks.pictureDraw(to);
 		} else {
-			SDL_RenderCopy(app.renderer, app.game, NULL, &to);
+			drawPicture(to);
 		}
 	}
 	touchDraw();
@@ -1142,6 +1173,10 @@ void recreateRenderer(void) {
 	if (app.game) {
 		SDL_DestroyTexture(app.game);
 		app.game = NULL;
+	}
+	if (sharpTexture) {
+		SDL_DestroyTexture(sharpTexture);
+		sharpTexture = NULL;
 	}
 	if (appHooks.rendererGoing) {
 		appHooks.rendererGoing();
