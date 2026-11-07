@@ -25,7 +25,7 @@
 #include <file/file_path.h>
 #include <lists/string_list.h>
 
-struct App app = { .format = RETRO_PIXEL_FORMAT_0RGB1555, .avEnable = RETRO_AV_ENABLE_VIDEO | RETRO_AV_ENABLE_AUDIO, .slot = 0 };
+struct App app = { .format = RETRO_PIXEL_FORMAT_0RGB1555, .avEnable = RETRO_AV_ENABLE_VIDEO | RETRO_AV_ENABLE_AUDIO, .slot = 0, .frameRate = FRAME_RATE, .soundRate = AUDIO_RATE };
 
 char configDirectory[PATH_SIZE];
 char systemDirectory[PATH_SIZE];
@@ -44,6 +44,13 @@ char cheatDirectory[PATH_SIZE];
 
 static SDL_AudioDeviceID audio;
 static unsigned bytesPerFrame;
+
+// The core's frame and sound rates, and the sound a frame queues at the device's rate.
+static void takeTiming(const struct retro_system_timing* timing) {
+	app.frameRate = timing->fps > 0 ? timing->fps : FRAME_RATE;
+	app.soundRate = timing->sample_rate > 0 ? timing->sample_rate : AUDIO_RATE;
+	bytesPerFrame = (unsigned) (AUDIO_RATE / app.frameRate) * 4;
+}
 // A frame's sound, gathered as the core gives it, then sent on at the frame's end.
 static int16_t frameSound[2 * 4096];
 static size_t frameSoundCount;
@@ -994,6 +1001,7 @@ bool loadNoCartridge(void) {
 	struct retro_system_av_info av;
 	retro_get_system_av_info(&av);
 	app.geometry = av.geometry;
+	takeTiming(&av.timing);
 	app.gamePath[0] = '\0';
 	snprintf(app.gameName, sizeof(app.gameName), "No Cartridge");
 	app.loaded = true;
@@ -1047,6 +1055,7 @@ bool loadGame(const char* path) {
 	struct retro_system_av_info av;
 	retro_get_system_av_info(&av);
 	app.geometry = av.geometry;
+	takeTiming(&av.timing);
 	if (!hwStart(&av.geometry)) {
 		retro_unload_game();
 		retro_deinit();
@@ -1206,8 +1215,9 @@ void applyWindowSize(void) {
 	}
 }
 
-// Sound: the frame's samples, at the volume, sent on. With vsync, the frames follow the screen, so
-// the sound is stretched or squeezed by up to half a percent to keep the queue where it should be.
+// Sound: the frame's samples, at the volume, resampled to the device's rate and sent on. With vsync,
+// the frames follow the screen, so the sound is stretched or squeezed by up to half a percent to keep
+// the queue where it should be.
 static void sendSound(void) {
 	if (!audio || !frameSoundCount) {
 		frameSoundCount = 0;
@@ -1229,7 +1239,7 @@ static void sendSound(void) {
 		ratio = 1 + 0.005 * ((double) target - queued) / target;
 	}
 	static int16_t out[2 * 8192];
-	size_t const outFrames = SDL_min((size_t) lround(frames * ratio), sizeof(out) / sizeof(*out) / 2);
+	size_t const outFrames = SDL_min((size_t) lround(frames * ratio * AUDIO_RATE / app.soundRate), sizeof(out) / sizeof(*out) / 2);
 	int const volume = settings.volume * 256 / 100;
 	for (size_t i = 0; i < outFrames; ++i) {
 		double const at = (double) i * frames / outFrames;
@@ -1593,7 +1603,7 @@ int main(int argc, char** argv) {
 	} else {
 		fprintf(stderr, APP_ID ": no sound: %s\n", SDL_GetError());
 	}
-	bytesPerFrame = (unsigned) (AUDIO_RATE / FRAME_RATE) * 4;
+	bytesPerFrame = (unsigned) (AUDIO_RATE / app.frameRate) * 4;
 
 	// A game given loads, and hosts or joins if asked; without one, the menu opens.
 	cheevosInit();
@@ -1616,7 +1626,7 @@ int main(int argc, char** argv) {
 
 	// The main loop: events, then the frames due, then the picture.
 	Uint64 const frequency = SDL_GetPerformanceFrequency();
-	double const frameTicks = frequency / FRAME_RATE;
+	double frameTicks = frequency / app.frameRate;
 	Uint64 last = SDL_GetPerformanceCounter(), fpsSince = last;
 	double owed = 0;
 	unsigned frame = 0, fpsFrames = framesDrawn;
@@ -1646,6 +1656,7 @@ int main(int argc, char** argv) {
 		}
 		// How many frames are due: with vsync, as the time passes; else one, then the sound sets the pace.
 		Uint64 const now = SDL_GetPerformanceCounter();
+		frameTicks = frequency / app.frameRate;
 		int due = 1;
 		if (settings.vsync) {
 			owed += (double) (now - last) / frameTicks;

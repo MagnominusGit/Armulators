@@ -558,7 +558,7 @@ static void shellWord(char* out, size_t size, const char* path) {
 
 // The WAV file's header for bytes of 16-bit stereo, written over the first 44 bytes.
 static void wavHeader(FILE* f, uint32_t bytes) {
-	uint32_t const rate = AUDIO_RATE;
+	uint32_t const rate = (uint32_t) (app.soundRate + 0.5);
 	uint8_t h[44] = { 'R', 'I', 'F', 'F' };
 	uint32_t const riff = 36 + bytes;
 	memcpy(h + 4, &riff, 4);

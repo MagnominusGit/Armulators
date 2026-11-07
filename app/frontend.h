@@ -197,6 +197,9 @@ struct App {
 	int gameWidth, gameHeight;
 	enum retro_pixel_format format;
 	struct retro_game_geometry geometry;
+	// The core's frame rate and sound rate (its av info): frames run at that rate, and the sound is
+	// resampled to the device's AUDIO_RATE.
+	double frameRate, soundRate;
 	// The last picture, as the core gave it, for screenshots and recording.
 	uint8_t* picture;
 	size_t picturePitch;
