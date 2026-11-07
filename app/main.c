@@ -1354,6 +1354,12 @@ static void sendSound(void) {
 		frameSoundCount = 0;
 		return;
 	}
+	// Starting, or after a pause or a stall let the queue run dry, the cushion comes back at once as
+	// silence: stretching alone would take seconds to rebuild it, crackling meanwhile.
+	if (!queued && target > bytesPerFrame) {
+		static uint8_t const silence[8 * 8192 * 4];
+		SDL_QueueAudio(audio, silence, SDL_min(target - bytesPerFrame, (unsigned) sizeof(silence)));
+	}
 	double ratio = 1;
 	if (settings.vsync) {
 		ratio = 1 + 0.005 * ((double) target - queued) / target;
