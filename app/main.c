@@ -1195,6 +1195,18 @@ void recreateRenderer(void) {
 	}
 	Uint32 const vsync = settings.vsync ? SDL_RENDERER_PRESENTVSYNC : 0;
 	app.renderer = SDL_CreateRenderer(app.window, -1, SDL_RENDERER_ACCELERATED | vsync);
+	// SDL's desktop GL renderer where the driver's GL is GLES only (Mali under Wayland) draws in a
+	// corner: its GLES one instead.
+	SDL_RendererInfo info;
+	const unsigned char* (*getString)(unsigned) = (const unsigned char* (*)(unsigned)) SDL_GL_GetProcAddress("glGetString");
+	const char* version = app.renderer && SDL_GetRendererInfo(app.renderer, &info) == 0 && !strcmp(info.name, "opengl") && getString
+	                          ? (const char*) getString(0x1F02) // GL_VERSION
+	                          : NULL;
+	if (version && !strncmp(version, "OpenGL ES", 9)) {
+		SDL_DestroyRenderer(app.renderer);
+		SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengles2");
+		app.renderer = SDL_CreateRenderer(app.window, -1, SDL_RENDERER_ACCELERATED | vsync);
+	}
 	if (!app.renderer) {
 		app.renderer = SDL_CreateRenderer(app.window, -1, SDL_RENDERER_SOFTWARE);
 	}
