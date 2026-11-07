@@ -161,6 +161,10 @@ bool hwStart(const struct retro_game_geometry* geometry) {
 		major = hw.context_type == RETRO_HW_CONTEXT_OPENGLES2 ? 2 : 3;
 		minor = 0;
 	}
+	int profile = 0, wasMajor = 0, wasMinor = 0;
+	SDL_GL_GetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, &profile);
+	SDL_GL_GetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, &wasMajor);
+	SDL_GL_GetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, &wasMinor);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, es ? SDL_GL_CONTEXT_PROFILE_ES
 	                                                 : hw.context_type == RETRO_HW_CONTEXT_OPENGL_CORE ? SDL_GL_CONTEXT_PROFILE_CORE : 0);
 	if (major) {
@@ -168,8 +172,11 @@ bool hwStart(const struct retro_game_geometry* geometry) {
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, (int) minor);
 	}
 	context = SDL_GL_CreateContext(app.window);
-	// The renderer's contexts, made again when it is, keep its own.
-	SDL_GL_ResetAttributes();
+	// The renderer's own back: with others, SDL makes the window again as the renderer is (Reset All
+	// Settings), and this context no longer draws to it.
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, profile);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, wasMajor);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, wasMinor);
 	if (!context) {
 		osd("Can't make the GL context the core draws with: %s", SDL_GetError());
 		asked = false;
