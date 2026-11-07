@@ -13,5 +13,5 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 # Debian's arm64 zlib, which is outside the root above.
-set(ZLIB_LIBRARY /usr/lib/aarch64-linux-gnu/libz.so)
-set(ZLIB_INCLUDE_DIR /usr/include)
+set(ZLIB_LIBRARY /usr/lib/aarch64-linux-gnu/libz.so CACHE FILEPATH "")
+set(ZLIB_INCLUDE_DIR /usr/include CACHE PATH "")
