@@ -43,13 +43,41 @@ char ownShotDirectory[PATH_SIZE];
 char cheatDirectory[PATH_SIZE];
 
 static SDL_AudioDeviceID audio;
+static int audioRate = AUDIO_RATE;
 static unsigned bytesPerFrame;
+// The resampler's place: how far into the next frame's sound its next sample falls (from -1, the
+// last frame's last sample), and that sample.
+static double soundPhase;
+static int16_t soundLast[2];
 
-// The core's frame and sound rates, and the sound a frame queues at the device's rate.
+// The sound device, at rate: stereo, the system converting to its own rate if it has to. Without
+// one the game runs silent.
+static void openAudio(int rate) {
+	if (audio) {
+		SDL_CloseAudioDevice(audio);
+	}
+	SDL_AudioSpec want = { .freq = rate, .format = AUDIO_S16SYS, .channels = 2, .samples = 512 }, have;
+	audio = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
+	audioRate = rate;
+	soundPhase = 0;
+	memset(soundLast, 0, sizeof(soundLast));
+	if (audio) {
+		SDL_PauseAudioDevice(audio, 0);
+	} else {
+		fprintf(stderr, APP_ID ": no sound: %s\n", SDL_GetError());
+	}
+}
+
+// The core's frame and sound rates, and the sound a frame queues. The device runs at the core's
+// rate, so the sound is only stretched to follow the screen.
 static void takeTiming(const struct retro_system_timing* timing) {
 	app.frameRate = timing->fps > 0 ? timing->fps : FRAME_RATE;
 	app.soundRate = timing->sample_rate > 0 ? timing->sample_rate : AUDIO_RATE;
-	bytesPerFrame = (unsigned) (AUDIO_RATE / app.frameRate) * 4;
+	int const rate = (int) lround(app.soundRate);
+	if (audio && rate != audioRate) {
+		openAudio(rate);
+	}
+	bytesPerFrame = (unsigned) (audioRate / app.frameRate) * 4;
 }
 // A frame's sound, gathered as the core gives it, then sent on at the frame's end.
 static int16_t frameSound[2 * 4096];
@@ -1308,7 +1336,8 @@ void applyWindowSize(void) {
 
 // Sound: the frame's samples, at the volume, resampled to the device's rate and sent on. With vsync,
 // the frames follow the screen, so the sound is stretched or squeezed by up to half a percent to keep
-// the queue where it should be.
+// the queue where it should be. The resampling runs on across frames, so no frame's sound is cut
+// short or started over.
 static void sendSound(void) {
 	if (!audio || !frameSoundCount) {
 		frameSoundCount = 0;
@@ -1330,18 +1359,25 @@ static void sendSound(void) {
 		ratio = 1 + 0.005 * ((double) target - queued) / target;
 	}
 	static int16_t out[2 * 8192];
-	size_t const outFrames = SDL_min((size_t) lround(frames * ratio * AUDIO_RATE / app.soundRate), sizeof(out) / sizeof(*out) / 2);
+	size_t const most = sizeof(out) / sizeof(*out) / 2;
+	// Input samples per output sample; sample -1 is the last frame's last.
+	double const step = app.soundRate / (audioRate * ratio);
 	int const volume = settings.volume * 256 / 100;
-	for (size_t i = 0; i < outFrames; ++i) {
-		double const at = (double) i * frames / outFrames;
-		size_t const a = (size_t) at;
-		size_t const b = a + 1 < frames ? a + 1 : a;
+	size_t outFrames = 0;
+	double at = soundPhase;
+	for (; at < (double) frames - 1 && outFrames < most; at += step) {
+		long const a = (long) floor(at);
 		double const t = at - a;
 		for (int c = 0; c < 2; ++c) {
-			double const sample = frameSound[a * 2 + c] * (1 - t) + frameSound[b * 2 + c] * t;
-			out[i * 2 + c] = (int16_t) (sample * volume / 256);
+			double const from = a < 0 ? soundLast[c] : frameSound[a * 2 + c];
+			double const to = frameSound[(a + 1) * 2 + c];
+			out[outFrames * 2 + c] = (int16_t) ((from + (to - from) * t) * volume / 256);
 		}
+		++outFrames;
 	}
+	soundPhase = at - frames;
+	soundLast[0] = frameSound[(frames - 1) * 2];
+	soundLast[1] = frameSound[(frames - 1) * 2 + 1];
 	SDL_QueueAudio(audio, out, (Uint32) (outFrames * 4));
 	frameSoundCount = 0;
 }
@@ -1690,15 +1726,8 @@ int main(int argc, char** argv) {
 	retro_set_input_poll(inputPoll);
 	retro_set_input_state(inputState);
 
-	// Stereo at the core's rate. Without a sound device the game runs silent.
-	SDL_AudioSpec want = { .freq = AUDIO_RATE, .format = AUDIO_S16SYS, .channels = 2, .samples = 512 }, have;
-	audio = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
-	if (audio) {
-		SDL_PauseAudioDevice(audio, 0);
-	} else {
-		fprintf(stderr, APP_ID ": no sound: %s\n", SDL_GetError());
-	}
-	bytesPerFrame = (unsigned) (AUDIO_RATE / app.frameRate) * 4;
+	openAudio(AUDIO_RATE);
+	bytesPerFrame = (unsigned) (audioRate / app.frameRate) * 4;
 
 	// A game given loads, and hosts or joins if asked; without one, the menu opens.
 	cheevosInit();
