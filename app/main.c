@@ -293,8 +293,44 @@ void refreshShownOptions(void) {
 	}
 }
 
-// What the core asks of the frontend: its options, folders, pixel format, logging, rumble, the link
-// cable's netpacket interface, and whether this frame is shown and heard. The rest it does without.
+struct retro_disk_control_ext_callback discs;
+bool haveDiscs;
+
+void discInsert(unsigned index) {
+	if (!haveDiscs || index >= discs.get_num_images()) {
+		return;
+	}
+	discs.set_eject_state(true);
+	discs.set_image_index(index);
+	discs.set_eject_state(false);
+}
+
+bool discAdd(const char* path) {
+	if (!haveDiscs || !discs.add_image_index || !discs.replace_image_index) {
+		return false;
+	}
+	discs.set_eject_state(true);
+	if (!discs.add_image_index()) {
+		discs.set_eject_state(false);
+		osd("No room for another");
+		return false;
+	}
+	unsigned const index = discs.get_num_images() - 1;
+	struct retro_game_info info = { path, NULL, 0, NULL };
+	if (!discs.replace_image_index(index, &info)) {
+		discs.replace_image_index(index, NULL);
+		discs.set_eject_state(false);
+		osd("Can't use that file");
+		return false;
+	}
+	discs.set_image_index(index);
+	discs.set_eject_state(false);
+	return true;
+}
+
+// What the core asks of the frontend: its options, folders, pixel format, logging, rumble, discs, the
+// link cable's netpacket interface, and whether this frame is shown and heard. The rest it does
+// without.
 static bool environment(unsigned command, void* data) {
 	switch (command) {
 	case RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION:
@@ -405,6 +441,18 @@ static bool environment(unsigned command, void* data) {
 		}
 		return true;
 	}
+	case RETRO_ENVIRONMENT_GET_DISK_CONTROL_INTERFACE_VERSION:
+		*(unsigned*) data = 1;
+		return true;
+	case RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE:
+		memset(&discs, 0, sizeof(discs));
+		memcpy(&discs, data, sizeof(struct retro_disk_control_callback));
+		haveDiscs = true;
+		return true;
+	case RETRO_ENVIRONMENT_SET_DISK_CONTROL_EXT_INTERFACE:
+		discs = *(const struct retro_disk_control_ext_callback*) data;
+		haveDiscs = true;
+		return true;
 	case RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE:
 		((struct retro_rumble_interface*) data)->set_rumble_state = setRumble;
 		return true;
@@ -981,6 +1029,8 @@ void unloadGame(void) {
 	retro_unload_game();
 	hwStop();
 	retro_deinit();
+	haveDiscs = false;
+	memset(&discs, 0, sizeof(discs));
 	app.loaded = false;
 	app.noCartridge = false;
 	free((void*) app.gameData);

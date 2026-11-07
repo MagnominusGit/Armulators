@@ -90,9 +90,24 @@ static bool cheatFile(const char* name) {
 	return dot && !strcasecmp(dot, ".cht");
 }
 
-// The list lists RetroArch cheat files to add to the game's instead of games; the game list's folder
-// is kept meanwhile.
-static bool browserCheats;
+// The files the core's discs can be, by the app's list of extensions, or any.
+static bool discFile(const char* name) {
+	const char* dot = strrchr(name, '.');
+	if (!appHooks.discFiles) {
+		return name[0] != '.';
+	}
+	for (const char* const* e = appHooks.discFiles; dot && *e; ++e) {
+		if (!strcasecmp(dot, *e)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// What the list lists: games, RetroArch cheat files to add to the game's, or files to add to the
+// core's discs; the game list's folder is kept while it lists the others.
+enum { BROWSE_GAMES, BROWSE_CHEATS, BROWSE_DISCS };
+static int browserFor;
 static char browserGamesPath[PATH_SIZE];
 // A folder's name to select once the list shows it: the one just left by "..".
 static char browserReselect[NAME_SIZE];
@@ -173,7 +188,7 @@ static void readBrowser(void) {
 			directory = S_ISDIR(st.st_mode);
 		}
 		// Only folders and the files the list is for.
-		if (!directory && !(browserCheats ? cheatFile(e->d_name) : gameFile(e->d_name))) {
+		if (!directory && !((browserFor == BROWSE_CHEATS ? cheatFile(e->d_name) : browserFor == BROWSE_DISCS ? discFile(e->d_name) : gameFile(e->d_name)))) {
 			continue;
 		}
 		if (!ensureEntries(browserCount + 1)) {
@@ -243,7 +258,7 @@ void browserMenu(void) {
 	if (folders) {
 		snprintf(folderCount, sizeof(folderCount), ", %d %s", folders, folders == 1 ? "folder" : "folders");
 	}
-	snprintf(counts, sizeof(counts), "%s %s%s", games, browserCheats ? "cheat files" : browserCount - folders == 1 ? "game" : "games", folderCount);
+	snprintf(counts, sizeof(counts), "%s %s%s", games, browserFor == BROWSE_CHEATS ? "cheat files" : browserFor == BROWSE_DISCS ? (browserCount - folders == 1 ? "file" : "files") : browserCount - folders == 1 ? "game" : "games", folderCount);
 	char where[PATH_SIZE];
 	shownPath(where, sizeof(where), browserPath);
 	// Only the end of a path too long for the row.
@@ -265,7 +280,7 @@ void browserMenu(void) {
 	bool const inside = gamesLength && !strncmp(browserPath, gamesDirectory, gamesLength) && browserPath[gamesLength] == '/';
 	bool const away = !home && !inside && gamesDirectory[0];
 	shortcuts += last + away;
-	if (!browserCheats && shortcuts) {
+	if (browserFor == BROWSE_GAMES && shortcuts) {
 		addHeader("Shortcuts");
 		for (int i = 0; home && i < CONSOLES; ++i) {
 			if (consoleDirectories[i][0]) {
@@ -432,7 +447,11 @@ static void browse(int index, int delta) {
 		}
 		memcpy(browserPath, path, length + 1);
 		stack[depth - 1].selected = -1;
-	} else if (browserCheats) {
+	} else if (browserFor == BROWSE_DISCS) {
+		if (discAdd(path)) {
+			popMenu();
+		}
+	} else if (browserFor == BROWSE_CHEATS) {
 		int const added = cheatListImport(path);
 		if (added < 0) {
 			osd("Can't read %s", browserEntries[index].name);
@@ -461,7 +480,7 @@ void uiPickGame(const char* title, const char* wanted, bool (*picked)(const char
 	}
 	snprintf(gameWanted, sizeof(gameWanted), "%s", wanted);
 	uiOpenMenu();
-	browserCheats = false;
+	browserFor = BROWSE_GAMES;
 	snprintf(browserPath, sizeof(browserPath), "%s", gamesDirectory[0] ? gamesDirectory : settings.directory);
 	browserListed[0] = '\0';
 	pushMenu(browserMenu, title);
@@ -484,8 +503,8 @@ static void browseTo(int which, int delta) {
 static void openBrowser(int argument, int delta) {
 	(void) argument;
 	if (!delta) {
-		if (browserCheats) {
-			browserCheats = false;
+		if (browserFor != BROWSE_GAMES) {
+			browserFor = BROWSE_GAMES;
 			snprintf(browserPath, sizeof(browserPath), "%s", browserGamesPath);
 		}
 		browserListed[0] = '\0';
@@ -607,12 +626,89 @@ static void cheatNew(int argument, int delta) {
 static void openCheatFiles(int argument, int delta) {
 	(void) argument;
 	if (!delta) {
-		if (!browserCheats) {
+		if (browserFor == BROWSE_GAMES) {
 			snprintf(browserGamesPath, sizeof(browserGamesPath), "%s", browserPath);
-			browserCheats = true;
 		}
+		browserFor = BROWSE_CHEATS;
 		browserListed[0] = '\0';
 		pushMenu(browserMenu, "Load Cheat File");
+	}
+}
+
+// Discs: the core's discs or cards, which is in, taking it out, and adding a file as a new one.
+
+static const char* discNoun(void) {
+	return appHooks.disc ? appHooks.disc : "Disc";
+}
+
+// Left and right put the disc before or after in; choosing it puts the same one in again.
+static void discPick(int argument, int delta) {
+	(void) argument;
+	unsigned const count = discs.get_num_images();
+	if (count) {
+		discInsert(delta ? (unsigned) wrap((int) discs.get_image_index(), delta, (int) count) : discs.get_image_index());
+	}
+}
+
+static void discEject(int argument, int delta) {
+	(void) argument;
+	if (!delta) {
+		discs.set_eject_state(!discs.get_eject_state());
+	}
+}
+
+// The file list, for a file to add; it starts in the game's folder.
+static void openDiscFiles(int argument, int delta) {
+	(void) argument;
+	if (!delta) {
+		if (browserFor == BROWSE_GAMES) {
+			snprintf(browserGamesPath, sizeof(browserGamesPath), "%s", browserPath);
+		}
+		browserFor = BROWSE_DISCS;
+		snprintf(browserPath, sizeof(browserPath), "%s", app.gamePath);
+		char* const slash = strrchr(browserPath, '/');
+		if (slash && slash != browserPath) {
+			*slash = '\0';
+		}
+		browserListed[0] = '\0';
+		static char title[NAME_SIZE];
+		snprintf(title, sizeof(title), "Load New %s", discNoun());
+		pushMenu(browserMenu, title);
+	}
+}
+
+static void discsMenu(void) {
+	if (netRunning()) {
+		addInfo("Not during netplay", "");
+		return;
+	}
+	unsigned const count = discs.get_num_images();
+	unsigned const index = discs.get_image_index();
+	bool const out = discs.get_eject_state();
+	char value[NAME_SIZE];
+	if (out || index >= count) {
+		snprintf(value, sizeof(value), "None");
+	} else if (!discs.get_image_label || !discs.get_image_label(index, value, sizeof(value)) || !value[0]) {
+		snprintf(value, sizeof(value), "%u of %u", index + 1, count);
+	}
+	if (count) {
+		addValue(discNoun(), value, discPick, 0);
+		helpFor("Left and right change it; choosing it puts it in again.");
+		addItem(out ? "Insert" : "Eject", discEject, 0);
+	} else {
+		addInfo(discNoun(), value);
+	}
+	if (discs.add_image_index && discs.replace_image_index) {
+		snprintf(value, sizeof(value), "Load New %s...", discNoun());
+		addItem(value, openDiscFiles, 0);
+		helpFor("Adds a file as a new one and puts it in.");
+	}
+}
+
+static void openDiscs(int argument, int delta) {
+	(void) argument;
+	if (!delta) {
+		pushMenu(discsMenu, appHooks.discMenu ? appHooks.discMenu : "Discs");
 	}
 }
 
@@ -1894,6 +1990,12 @@ static void gameTab(void) {
 		addItem("Undo Load State", undoLoad, 0);
 		helpFor("Goes back to the game as it was before the last state loaded.");
 	}
+	if (haveDiscs) {
+		static char discRow[NAME_SIZE];
+		snprintf(discRow, sizeof(discRow), "%s...", appHooks.discMenu ? appHooks.discMenu : "Discs");
+		addItem(discRow, openDiscs, 0);
+		helpFor("Which is in, taking it out, and adding a file as a new one.");
+	}
 	addItem("Cheats...", openCheats, 0);
 	helpFor("This game's cheats: add codes, load RetroArch cheat files, turn them on or off.");
 	addItem("Saves...", openSaves, 0);
@@ -1940,5 +2042,5 @@ void uiOpenMenu(void) {
 	}
 	chooseGameFolders();
 	snprintf(browserPath, sizeof(browserPath), "%s", gamesDirectory);
-	browserCheats = false;
+	browserFor = BROWSE_GAMES;
 }

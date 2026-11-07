@@ -4,8 +4,8 @@
  * Licensed under the GNU General Public License, version 2 or (at your option) any later version: see LICENSE. */
 
 // What a core's own app adds to the shared one, where libretro's interface can't say it: its own
-// ways of drawing the picture, rows in the menus and settings. Each may be NULL; the app then does
-// what it does for any core.
+// ways of drawing the picture, rows in the menus and settings, names. Each may be NULL; the app then
+// does what it does for any core.
 
 #ifndef ARMGBA_FRONTEND_APP_HOOKS_H
 #define ARMGBA_FRONTEND_APP_HOOKS_H
@@ -56,6 +56,11 @@ struct AppHooks {
 	void (*saveManagerFolders)(const char* const* saves, int saveCount, const char* const* games, int gameCount, bool gamesFirst);
 	// The console RetroAchievements files a game under (rc_consoles.h), 0 when unknown.
 	uint32_t (*cheevosConsole)(const uint8_t* data, size_t size);
+	// The core's discs, by what the player knows them as: the Game tab's row for them, one of them,
+	// and the extensions of the files that can be added (NULL-terminated; NULL for any file).
+	const char* discMenu;
+	const char* disc;
+	const char* const* discFiles;
 };
 
 extern const struct AppHooks appHooks;

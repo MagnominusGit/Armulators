@@ -242,6 +242,13 @@ extern struct App app;
 bool loadGame(const char* path);
 bool loadNoCartridge(void);
 void unloadGame(void);
+// The core's discs (libretro's disk control), when it has them; the members the older interface
+// lacks are NULL. discAdd adds a file as a new disc and puts it in, as RetroArch's Load New Disc
+// does; discInsert takes the disc in out and puts disc index in.
+extern struct retro_disk_control_ext_callback discs;
+extern bool haveDiscs;
+bool discAdd(const char* path);
+void discInsert(unsigned index);
 void recreateRenderer(void);
 void applyWindowSize(void);
 // The game's picture drawn into to with the filter: Sharp Smooth scales it by whole numbers first.
