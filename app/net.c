@@ -555,7 +555,7 @@ static void sendState(struct Connection* c) {
 		frame = roll.frame;
 		state = malloc(roll.stateSize);
 		made = true;
-		if (!state || !retro_serialize(state, roll.stateSize)) {
+		if (!state || !coreSerialize(state, roll.stateSize)) {
 			free(state);
 			return;
 		}
@@ -604,7 +604,7 @@ static void takeState(const uint8_t* p, size_t size) {
 		return;
 	}
 	void* state = roll.states[frame % STATES];
-	if (uncompress(state, &length, p + header, size - header) != Z_OK || !retro_unserialize(state, roll.stateSize)) {
+	if (uncompress(state, &length, p + header, size - header) != Z_OK || !coreUnserialize(state, roll.stateSize)) {
 		osd("Netplay: the host's state didn't load; its " APP_NAME " may be another build");
 		netStop();
 		return;
@@ -633,7 +633,7 @@ static void takeState(const uint8_t* p, size_t size) {
 // Runs the next frame with every player's buttons as known or guessed now.
 static void runFrame(int avEnable) {
 	int const frame = roll.frame;
-	if (retro_serialize(roll.states[frame % STATES], roll.stateSize)) {
+	if (coreSerialize(roll.states[frame % STATES], roll.stateSize)) {
 		roll.stateFrames[frame % STATES] = frame;
 	}
 	for (int p = 0; p < PEERS; ++p) {
@@ -731,7 +731,7 @@ static void togetherFrame(void) {
 	if (roll.redoFrom < roll.frame) {
 		int const to = roll.frame, from = roll.redoFrom;
 		roll.redoFrom = INT_MAX;
-		if (to - from >= STATES || roll.stateFrames[from % STATES] != from || !retro_unserialize(roll.states[from % STATES], roll.stateSize)) {
+		if (to - from >= STATES || roll.stateFrames[from % STATES] != from || !coreUnserialize(roll.states[from % STATES], roll.stateSize)) {
 			if (netMode == NET_JOINED) {
 				sendTo(&connections[0], MSG_RESYNC, NULL, 0);
 			}

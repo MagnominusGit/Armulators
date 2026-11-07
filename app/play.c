@@ -47,13 +47,27 @@ void stateThumbnailPath(char out[FILE_SIZE + 8], int slot) {
 // How many states have been saved, so a thumbnail shown is read again after one is.
 int statesSaved;
 
+bool coreSerialize(void* data, size_t size) {
+	hwBegin();
+	bool const saved = retro_serialize(data, size);
+	hwEnd();
+	return saved;
+}
+
+bool coreUnserialize(const void* data, size_t size) {
+	hwBegin();
+	bool const loaded = retro_unserialize(data, size);
+	hwEnd();
+	return loaded;
+}
+
 // The game's state now, to slot's file, with the picture beside it.
 bool saveState(int slot) {
 	size_t const size = retro_serialize_size();
 	void* data = size ? malloc(size) : NULL;
 	char path[FILE_SIZE];
 	statePath(path, slot);
-	bool const saved = data && retro_serialize(data, size) && writeFile(path, data, size);
+	bool const saved = data && coreSerialize(data, size) && writeFile(path, data, size);
 	free(data);
 	if (saved) {
 		char thumbnail[FILE_SIZE + 8];
@@ -78,14 +92,14 @@ bool canUndoLoad(void) {
 // A state that stays in this session: the core may save it exactly, as it needn't load anywhere else.
 static bool keepState(void* data, size_t size) {
 	app.stateContext = RETRO_SAVESTATE_CONTEXT_RUNAHEAD_SAME_INSTANCE;
-	bool const saved = retro_serialize(data, size);
+	bool const saved = coreSerialize(data, size);
 	app.stateContext = RETRO_SAVESTATE_CONTEXT_NORMAL;
 	return saved;
 }
 
 static bool restoreState(const void* data, size_t size) {
 	app.stateContext = RETRO_SAVESTATE_CONTEXT_RUNAHEAD_SAME_INSTANCE;
-	bool const loaded = retro_unserialize(data, size);
+	bool const loaded = coreUnserialize(data, size);
 	app.stateContext = RETRO_SAVESTATE_CONTEXT_NORMAL;
 	return loaded;
 }
@@ -148,7 +162,7 @@ bool loadState(int slot) {
 		free(kept);
 		kept = NULL;
 	}
-	bool const loaded = data && retro_unserialize(data, size);
+	bool const loaded = data && coreUnserialize(data, size);
 	free(data);
 	if (loaded) {
 		undoForget();

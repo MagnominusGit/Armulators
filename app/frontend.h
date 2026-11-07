@@ -328,6 +328,9 @@ void osdResync(void);
 void uiCaptureBinding(int which, bool controller, bool hotkey);
 
 // play.c
+// The core's state saved and loaded with its GL context current: it may read its pictures back.
+bool coreSerialize(void* data, size_t size);
+bool coreUnserialize(const void* data, size_t size);
 bool saveState(int slot);
 bool loadState(int slot);
 bool stateExists(int slot);
