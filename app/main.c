@@ -1215,8 +1215,25 @@ void recreateRenderer(void) {
 	uiRecreateTextures();
 }
 
+// A full screen window the display's size: some compositors (sway with SDL 2.0.14) keep the size it
+// had before.
+static void fitDisplay(int* width, int* height) {
+	SDL_DisplayMode desktop;
+	if (SDL_GetDesktopDisplayMode(0, &desktop) == 0 && desktop.w > 0 && desktop.h > 0) {
+		*width = desktop.w;
+		*height = desktop.h;
+	}
+}
+
 // Full screen, or a window the console's screen times the window size.
 void applyWindowSize(void) {
+	if (settings.fullscreen) {
+		int width = 0, height = 0;
+		fitDisplay(&width, &height);
+		if (width) {
+			SDL_SetWindowSize(app.window, width, height);
+		}
+	}
 	SDL_SetWindowFullscreen(app.window, settings.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
 	if (!settings.fullscreen) {
 		// The console's screen times the window size, whatever the core's LCD Grid made the picture.
@@ -1587,7 +1604,11 @@ int main(int argc, char** argv) {
 		}
 		return 0;
 	}
-	app.window = SDL_CreateWindow(APP_NAME, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, APP_WINDOW_WIDTH * settings.scale, APP_WINDOW_HEIGHT * settings.scale,
+	int width = APP_WINDOW_WIDTH * settings.scale, height = APP_WINDOW_HEIGHT * settings.scale;
+	if (settings.fullscreen) {
+		fitDisplay(&width, &height);
+	}
+	app.window = SDL_CreateWindow(APP_NAME, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
 	                              SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | (settings.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0));
 	if (!app.window) {
 		fprintf(stderr, APP_ID ": %s\n", SDL_GetError());
