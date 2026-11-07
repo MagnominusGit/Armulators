@@ -320,6 +320,8 @@ void uiCloseGame(void);
 bool uiEvent(const SDL_Event* event);
 void uiDraw(void);
 void osd(const char* format, ...);
+// A core's progress (0 to 100) as a message with a bar, updated in place.
+void osdProgress(const char* text, int percent);
 // The messages, the press a row asked for and the menu button forgotten, as the app starts or comes
 // back: on Android its clock stops while it's away, and starts again with the app in the same process.
 void osdClear(void);

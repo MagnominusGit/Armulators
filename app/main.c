@@ -377,6 +377,18 @@ static bool environment(unsigned command, void* data) {
 	case RETRO_ENVIRONMENT_SET_MESSAGE:
 		osd("%s", ((const struct retro_message*) data)->msg);
 		return true;
+	case RETRO_ENVIRONMENT_SET_MESSAGE_EXT: {
+		const struct retro_message_ext* m = data;
+		if (m->target == RETRO_MESSAGE_TARGET_LOG) {
+			return true;
+		}
+		if (m->type == RETRO_MESSAGE_TYPE_PROGRESS && m->progress >= 0) {
+			osdProgress(m->msg, m->progress);
+		} else {
+			osd("%s", m->msg);
+		}
+		return true;
+	}
 	case RETRO_ENVIRONMENT_GET_LOG_INTERFACE:
 		((struct retro_log_callback*) data)->log = logMessage;
 		return true;

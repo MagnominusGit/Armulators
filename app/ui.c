@@ -64,6 +64,8 @@ static bool lastInputTouch;
 static struct {
 	char text[160];
 	Uint32 until;
+	// A progress message's percent (a bar under the text), -1 for a plain one.
+	int progress;
 } messages[MESSAGES];
 
 // The on-screen keyboard.
@@ -181,7 +183,18 @@ void osd(const char* format, ...) {
 	vsnprintf(messages[0].text, sizeof(messages[0].text), format, args);
 	va_end(args);
 	messages[0].until = settings.showMessages ? SDL_GetTicks() + MESSAGE_MS : 0;
+	messages[0].progress = -1;
 	fprintf(stderr, APP_ID ": %s\n", messages[0].text);
+}
+
+// A core's progress (0 to 100): one message with a bar, updated where it is while it goes on.
+void osdProgress(const char* text, int percent) {
+	if (!(messages[0].progress >= 0 && SDL_GetTicks() < messages[0].until)) {
+		osd("%s", text);
+	}
+	snprintf(messages[0].text, sizeof(messages[0].text), "%s", text);
+	messages[0].progress = SDL_clamp(percent, 0, 100);
+	messages[0].until = settings.showMessages ? SDL_GetTicks() + (percent >= 100 ? 1000 : MESSAGE_MS) : 0;
 }
 
 static Uint32 resyncUntil;
@@ -1413,10 +1426,17 @@ static void drawMessages(int width, int height, int u) {
 		int const alpha = left < 400 ? (int) (left * 255 / 400) : 255;
 		char fitted[200];
 		textFit(FACE_BODY, size, messages[i].text, width - 3 * u, false, fitted, sizeof(fitted));
-		int const w = textWidth(FACE_BODY, size, fitted) + u * 3 / 2;
-		fillBordered((SDL_Rect) { u / 2, y, w, h }, h / 2, faded(panelFill, alpha), faded(edge, alpha), 1);
-		textDraw(FACE_BODY, size, u / 2 + u * 3 / 4, y + (h - size) / 2, faded(text, alpha), fitted);
-		y -= h + u / 3;
+		int const bar = messages[i].progress >= 0 ? u / 4 : 0;
+		int const w = SDL_max(textWidth(FACE_BODY, size, fitted) + u * 3 / 2, bar ? u * 10 : 0);
+		fillBordered((SDL_Rect) { u / 2, y - bar * 2, w, h + bar * 2 }, h / 2, faded(panelFill, alpha), faded(edge, alpha), 1);
+		textDraw(FACE_BODY, size, u / 2 + u * 3 / 4, y - bar * 2 + (h - size) / 2, faded(text, alpha), fitted);
+		if (bar) {
+			// The bar under the text, filled to the percent.
+			SDL_Rect const track = { u / 2 + u * 3 / 4, y + h - bar * 3 / 2 - u / 4, w - u * 3 / 2, bar };
+			fillRounded(track, bar / 2, faded(edge, alpha));
+			fillRounded((SDL_Rect) { track.x, track.y, SDL_max(bar, track.w * messages[i].progress / 100), bar }, bar / 2, faded(accent, alpha));
+		}
+		y -= h + bar * 2 + u / 3;
 	}
 }
 
