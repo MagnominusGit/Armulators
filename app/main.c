@@ -1110,14 +1110,12 @@ bool loadGame(const char* path) {
 	// A game in an archive is named as RetroArch names it, archive#game, so the core sees its extension.
 	char named[PATH_SIZE * 2];
 	snprintf(named, sizeof(named), "%s", path);
+	// An archive with no game file in it, such as an arcade set of chip files, goes to the core whole.
 	if (path_is_compressed_file(path)) {
 		struct string_list* entries = file_archive_get_file_list(path, APP_ARCHIVED);
-		if (!entries || !entries->size) {
-			string_list_free(entries);
-			osd("No game in that archive");
-			return false;
+		if (entries && entries->size) {
+			snprintf(named, sizeof(named), "%s#%s", path, entries->elems[0].data);
 		}
-		snprintf(named, sizeof(named), "%s#%s", path, entries->elems[0].data);
 		string_list_free(entries);
 	}
 	size_t size;
