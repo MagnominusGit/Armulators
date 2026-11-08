@@ -134,13 +134,14 @@ static void chooseFolder(char out[PATH_SIZE], const char* setting, const char* o
 	}
 }
 
-// A folder in parent named one of names, any case.
+// A folder in parent named one of names, any case, the first name found first.
 static bool findFolder(char out[PATH_SIZE], const char* parent, const char* const* names) {
 	DIR* const dir = opendir(parent);
-	struct dirent* e;
 	bool found = false;
-	while (dir && !found && (e = readdir(dir))) {
-		for (const char* const* name = names; *name && !found; ++name) {
+	for (const char* const* name = names; dir && *name && !found; ++name) {
+		struct dirent* e;
+		rewinddir(dir);
+		while (!found && (e = readdir(dir))) {
 			if (!strcasecmp(e->d_name, *name)) {
 				snprintf(out, PATH_SIZE, "%s/%s", parent, e->d_name);
 				found = isFolder(out);
