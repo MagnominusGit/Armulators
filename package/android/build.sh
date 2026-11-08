@@ -58,7 +58,10 @@ describe -DIN="$here/java/App.java.in" -DOUT="$out/java/$APP_JAVA_PATH/$APP_JAVA
 describe -DIN="$here/AndroidManifest.xml.in" -DOUT="$out/AndroidManifest.xml"
 javac -nowarn --release 8 -classpath "$platform" -d "$out/classes" \
 	$(find "$SDL2_SOURCE/android-project/app/src/main/java" "$out/java" -name '*.java') 2> "$out/javac.log" || { cat "$out/javac.log"; exit 1; }
-"$sdk/cmdline-tools/latest/bin/d8" --release --lib "$platform" --min-api $api --output "$out/dex" $(find "$out/classes" -name '*.class')
+# The newest command-line tools installed (sdkmanager puts an update beside the running copy).
+d8=$(ls "$sdk"/cmdline-tools/*/bin/d8 2>/dev/null | sort -V | tail -1)
+[ -n "$d8" ] || { echo "no d8: install the Android SDK's command-line tools"; exit 1; }
+"$d8" --release --lib "$platform" --min-api $api --output "$out/dex" $(find "$out/classes" -name '*.class')
 
 # The package: manifest and icon, then the code and libraries, aligned and signed.
 version=$(git -C "$root" rev-list --count HEAD)
