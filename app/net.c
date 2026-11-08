@@ -288,10 +288,15 @@ static void closeConnection(struct Connection* c) {
 // The netplay menu's status line.
 static const char* optionValue(const char* key);
 
+// Link Mode: a core without the option has one console, which the players share, as Off.
+static const char* linkValue(void) {
+	return optionFind(APP_ID "_link_mode") ? optionValue(APP_ID "_link_mode") : "off";
+}
+
 const char* const netLinkNames[] = { "Together", "Separate", "Off" };
 
 static int sessionLink(void) {
-	return !netTogether ? LINK_SEPARATE : !strcmp(optionValue(APP_ID "_link_mode"), "off") ? LINK_OFF : LINK_TOGETHER;
+	return !netTogether ? LINK_SEPARATE : !strcmp(linkValue(), "off") ? LINK_OFF : LINK_TOGETHER;
 }
 
 static void setStatus(void) {
@@ -388,12 +393,12 @@ static bool localSecondGame(const char* hostValue, const char** value) {
 static char linkStarted[16];
 
 void netGameStarted(void) {
-	snprintf(linkStarted, sizeof(linkStarted), "%s", optionValue(APP_ID "_link_mode"));
+	snprintf(linkStarted, sizeof(linkStarted), "%s", linkValue());
 }
 
 // The link mode a session needs; the game starts again when it started with another.
 static bool linkMode(const char* mode) {
-	if (!strcmp(optionValue(APP_ID "_link_mode"), mode) && !strcmp(linkStarted, mode)) {
+	if (!strcmp(linkValue(), mode) && !strcmp(linkStarted, mode)) {
 		return false;
 	}
 	setOption(APP_ID "_link_mode", mode);
@@ -859,7 +864,7 @@ static uint32_t firmwareCrc(const char** name) {
 bool netHost(const char* link) {
 	char mode[16];
 	// With no cartridge, Save Manager and single-pak games link Separate.
-	snprintf(mode, sizeof(mode), "%s", app.noCartridge ? "separate" : link ? link : optionValue(APP_ID "_link_mode"));
+	snprintf(mode, sizeof(mode), "%s", app.noCartridge ? "separate" : link ? link : linkValue());
 	bool const separate = !strcmp(mode, "separate"), oneConsole = !strcmp(mode, "off");
 	// Every device runs every console, Together's or Off's one; Separate, each device its own.
 	bool const together = !separate;
