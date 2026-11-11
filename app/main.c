@@ -312,6 +312,18 @@ static bool setRumble(unsigned port, enum retro_rumble_effect effect, uint16_t s
 	return true;
 }
 
+// The motion sensors for the core: nothing reads in netplay, where the other devices couldn't feel
+// them.
+static bool setSensorState(unsigned port, enum retro_sensor_action action, unsigned rate) {
+	(void) rate;
+	return !port && action <= RETRO_SENSOR_GYROSCOPE_DISABLE && motionWant(action / 2, MOTION_FOR_CORE, !(action & 1));
+}
+
+static float getSensorInput(unsigned port, unsigned id) {
+	float v[3];
+	return !port && id <= RETRO_SENSOR_GYROSCOPE_Z && !netRunning() && motionRead(id / 3, v) ? v[id % 3] : 0;
+}
+
 // The core's way to show and hide its options again for their values.
 static retro_core_options_update_display_callback_t updateShown;
 
@@ -484,6 +496,10 @@ static bool environment(unsigned command, void* data) {
 		return true;
 	case RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE:
 		((struct retro_rumble_interface*) data)->set_rumble_state = setRumble;
+		return true;
+	case RETRO_ENVIRONMENT_GET_SENSOR_INTERFACE:
+		((struct retro_sensor_interface*) data)->set_sensor_state = setSensorState;
+		((struct retro_sensor_interface*) data)->get_sensor_input = getSensorInput;
 		return true;
 	// Netplay's, rewind's and run-ahead's states need only load back into this same core.
 	case RETRO_ENVIRONMENT_GET_SAVESTATE_CONTEXT:

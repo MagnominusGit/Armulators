@@ -7,6 +7,7 @@ package @APP_JAVA_PACKAGE@;
 
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.provider.DocumentsContract;
@@ -53,6 +54,25 @@ public class @APP_JAVA_CLASS@ extends SDLActivity {
 		} else if (broadcasts.isHeld()) {
 			broadcasts.release();
 		}
+	}
+
+	// From the app's thread, while a game reads the motion sensors: keeps the screen turned as it is, as
+	// turning the device mustn't turn the picture, then lets it follow the device as before.
+	private static int followed = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+
+	public static void lockOrientation(boolean lock) {
+		final @APP_JAVA_CLASS@ activity = (@APP_JAVA_CLASS@) mSingleton;
+		if (activity == null) {
+			return;
+		}
+		activity.runOnUiThread(() -> {
+			if (lock) {
+				followed = activity.getRequestedOrientation();
+				activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LOCKED);
+			} else {
+				activity.setRequestedOrientation(followed);
+			}
+		});
 	}
 
 	public static String takeFolder() {

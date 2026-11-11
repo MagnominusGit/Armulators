@@ -304,6 +304,17 @@ bool writeFile(const char* path, const void* data, size_t size);
 // then kept from the game until let go.
 bool padHotkeyPressed(SDL_JoystickID which, int binding, int action);
 const char* padHotkeyName(void);
+// The device's motion sensors (motion.c), Android's through SDL: the accelerometer in m/s^2 and the
+// gyroscope in rad/s, along the screen's right, up and out towards the player as the display is
+// turned. Each user wants one on or off, and it's open while any does; motionWant returns whether it
+// is; while the core wants one, the screen keeps the way it's turned. motionRead is false without a
+// reading.
+enum { MOTION_ACCEL, MOTION_GYRO, MOTION_SENSORS };
+enum { MOTION_FOR_CORE = 1, MOTION_FOR_APP = 2 };
+bool motionAvailable(int sensor);
+bool motionWant(int sensor, unsigned user, bool on);
+bool motionRead(int sensor, float out[3]);
+
 // The On-Screen Controls (touch.c): attached or detached as wanted when the controllers change, a
 // touch, and drawn over the game.
 void touchUpdate(void);
