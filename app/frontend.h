@@ -197,6 +197,8 @@ struct App {
 	int gameWidth, gameHeight;
 	enum retro_pixel_format format;
 	struct retro_game_geometry geometry;
+	// Where the game's picture was last drawn, in the renderer's pixels.
+	SDL_Rect pictureRect;
 	// The core's frame rate and sound rate (its av info): frames run at that rate, and the sound
 	// device is opened at the sound rate.
 	double frameRate, soundRate;
@@ -321,6 +323,10 @@ void touchUpdate(void);
 // Whether the device is played by touch alone: Android with no controller connected.
 bool touchOnly(void);
 bool touchEvent(const SDL_Event* event);
+// The pointer the core reads: a finger on the game's picture that didn't come down on a control, or
+// the mouse's left button there, -0x7FFF to 0x7FFF across the picture each way. False while nothing
+// points.
+bool touchPointer(int* x, int* y);
 void touchDraw(void);
 void touchHideMenuButton(void);
 // Quits on the Quit hotkey's second press within three seconds; the first says so.

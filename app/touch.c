@@ -36,6 +36,12 @@ static struct {
 } fingers[FINGERS];
 // Where each stick is pushed, -1 to 1 each way.
 static float sticks[2][2];
+// The finger or mouse button pointing at the picture, and where, in the renderer's pixels.
+static struct {
+	SDL_FingerID id;
+	bool down, mouse;
+	float x, y;
+} pointer;
 
 enum Shape { ROUND, PILL, CROSS, STICK };
 
@@ -202,13 +208,70 @@ static bool overGame(void) {
 	return app.loaded && !app.menuOpen;
 }
 
-// A touch: the buttons held are remade from every finger down; the menu button opens the menu.
+static bool overPicture(float x, float y) {
+	SDL_Rect const r = app.pictureRect;
+	return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+}
+
+bool touchPointer(int* x, int* y) {
+	SDL_Rect const r = app.pictureRect;
+	if (!pointer.down || !overGame() || r.w <= 0 || r.h <= 0) {
+		return false;
+	}
+	float const px = (pointer.x - r.x) / r.w * 2 - 1, py = (pointer.y - r.y) / r.h * 2 - 1;
+	*x = (int) (SDL_max(-1.0f, SDL_min(1.0f, px)) * 0x7FFF);
+	*y = (int) (SDL_max(-1.0f, SDL_min(1.0f, py)) * 0x7FFF);
+	return true;
+}
+
+// The mouse's left button and moves over the picture, from a real mouse (touches come as fingers).
+static bool mouseEvent(const SDL_Event* event) {
+	bool const button = (event->type == SDL_MOUSEBUTTONDOWN || event->type == SDL_MOUSEBUTTONUP) &&
+	                    event->button.which != SDL_TOUCH_MOUSEID && event->button.button == SDL_BUTTON_LEFT;
+	bool const motion = event->type == SDL_MOUSEMOTION && event->motion.which != SDL_TOUCH_MOUSEID;
+	if (!button && !motion) {
+		return false;
+	}
+	int ww, wh, width, height;
+	SDL_GetWindowSize(app.window, &ww, &wh);
+	SDL_GetRendererOutputSize(app.renderer, &width, &height);
+	int const mx = button ? event->button.x : event->motion.x, my = button ? event->button.y : event->motion.y;
+	float const x = ww ? (float) mx * width / ww : 0, y = wh ? (float) my * height / wh : 0;
+	if (motion) {
+		if (pointer.down && pointer.mouse) {
+			pointer.x = x;
+			pointer.y = y;
+		}
+		return false;
+	}
+	if (event->type == SDL_MOUSEBUTTONUP) {
+		bool const was = pointer.down && pointer.mouse;
+		if (was) {
+			pointer.down = false;
+		}
+		return was;
+	}
+	if (!overGame() || pointer.down || !overPicture(x, y)) {
+		return false;
+	}
+	pointer.down = pointer.mouse = true;
+	pointer.x = x;
+	pointer.y = y;
+	return true;
+}
+
+// A touch: the buttons held are remade from every finger down; the menu button opens the menu. A
+// finger on the picture that isn't on a control points there for the core.
 bool touchEvent(const SDL_Event* event) {
+	if (mouseEvent(event)) {
+		return true;
+	}
 	if (event->type != SDL_FINGERDOWN && event->type != SDL_FINGERMOTION && event->type != SDL_FINGERUP) {
 		return false;
 	}
 	if (!overGame()) {
 		release();
+		pointer.down = false;
 		return false;
 	}
 	int width, height;
@@ -228,6 +291,33 @@ bool touchEvent(const SDL_Event* event) {
 			uiOpenMenu();
 		}
 		return true;
+	}
+	if (pointer.down && !pointer.mouse && event->tfinger.fingerId == pointer.id) {
+		pointer.x = x;
+		pointer.y = y;
+		pointer.down = event->type != SDL_FINGERUP;
+		return true;
+	}
+	if (event->type == SDL_FINGERDOWN && !pointer.down && overPicture(x, y)) {
+		bool on[HELD] = { false };
+		bool onStick = false;
+		for (int c = 0; joystick && c < CONTROLS; ++c) {
+			float const dx = x - controls[c].x, dy = y - controls[c].y;
+			onStick |= controls[c].shape == STICK && dx * dx + dy * dy < controls[c].w * controls[c].w * 0.36f;
+			pressedAt(&controls[c], x, y, on);
+		}
+		bool onControl = onStick;
+		for (int b = 0; b < HELD; ++b) {
+			onControl |= on[b];
+		}
+		if (!onControl) {
+			pointer.id = event->tfinger.fingerId;
+			pointer.down = true;
+			pointer.mouse = false;
+			pointer.x = x;
+			pointer.y = y;
+			return true;
+		}
 	}
 	if (!joystick) {
 		return false;

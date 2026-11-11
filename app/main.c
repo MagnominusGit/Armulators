@@ -880,6 +880,18 @@ static int16_t inputState(unsigned port, unsigned device, unsigned index, unsign
 		uint16_t const bits = netRunning() ? netInput(port, id) : localButtons(port);
 		return (bits >> id) & 1;
 	}
+	// A touch or click on the picture, as RetroArch gives it; not in netplay, which doesn't carry it.
+	if (device == RETRO_DEVICE_POINTER && index == 0 && !netRunning()) {
+		int x = 0, y = 0;
+		bool const down = touchPointer(&x, &y);
+		switch (id) {
+		case RETRO_DEVICE_ID_POINTER_X: return (int16_t) (down ? x : 0);
+		case RETRO_DEVICE_ID_POINTER_Y: return (int16_t) (down ? y : 0);
+		case RETRO_DEVICE_ID_POINTER_PRESSED:
+		case RETRO_DEVICE_ID_POINTER_COUNT: return down;
+		default: return 0;
+		}
+	}
 	// A stick's keys, held, push it all the way.
 	if (APP_STICK_KEYS && device == RETRO_DEVICE_ANALOG && port == 0 && !app.menuOpen && !netRunning() &&
 	    index <= RETRO_DEVICE_INDEX_ANALOG_RIGHT && id <= RETRO_DEVICE_ID_ANALOG_Y) {
@@ -1271,6 +1283,7 @@ static void present(void) {
 		}
 		to.x = (width - to.w) / 2;
 		to.y = (height - to.h) / 2;
+		app.pictureRect = to;
 		if (appHooks.pictureDraw) {
 			appHooks.pictureDraw(to);
 		} else {
