@@ -1827,13 +1827,27 @@ int main(int argc, char** argv) {
 			due = SDL_min(due, 4);
 		}
 		last = now;
-		// Fast forward: as many frames as a 60th of a second takes, up to Fast-Forward Speed's, or 12.
+		// Fast forward: as many frames as a 60th of a second takes, up to Fast-Forward Speed's, or 12. Only
+		// the one that looks like the last before the picture is shown is drawn (every one while
+		// recording); the core may leave the others' pictures out.
 		if (app.fastForward && !netRunning()) {
 			due = 0;
 			Uint64 const until = now + frequency / 60;
 			int const most = settings.fastForward ? settings.fastForward : 12;
+			Uint64 took = 0;
 			while (SDL_GetPerformanceCounter() < until && due < most) {
+				Uint64 const start = SDL_GetPerformanceCounter();
+				bool const shown = recording() || due == most - 1 || start + 2 * took >= until;
+				int const av = app.avEnable;
+				if (!shown) {
+					app.avEnable &= ~RETRO_AV_ENABLE_VIDEO;
+				}
 				runFrames();
+				if (!shown) {
+					app.avEnable = av;
+					++framesDrawn;
+				}
+				took = SDL_GetPerformanceCounter() - start;
 				++due;
 			}
 		} else {
