@@ -36,11 +36,14 @@ static struct {
 } fingers[FINGERS];
 // Where each stick is pushed, -1 to 1 each way.
 static float sticks[2][2];
-// The finger or mouse button pointing at the picture, and where, in the renderer's pixels.
+// The finger or mouse button pointing at the picture, and where, in the renderer's pixels; a tap
+// counts as held until heldUntil, so the core sees it however quickly it lifts.
+enum { TAP_MS = 50 };
 static struct {
 	SDL_FingerID id;
 	bool down, mouse;
 	float x, y;
+	Uint32 heldUntil;
 } pointer;
 
 enum Shape { ROUND, PILL, CROSS, STICK };
@@ -215,7 +218,7 @@ static bool overPicture(float x, float y) {
 
 bool touchPointer(int* x, int* y) {
 	SDL_Rect const r = app.pictureRect;
-	if (!pointer.down || !overGame() || r.w <= 0 || r.h <= 0) {
+	if ((!pointer.down && SDL_TICKS_PASSED(SDL_GetTicks(), pointer.heldUntil)) || !overGame() || r.w <= 0 || r.h <= 0) {
 		return false;
 	}
 	float const px = (pointer.x - r.x) / r.w * 2 - 1, py = (pointer.y - r.y) / r.h * 2 - 1;
@@ -257,6 +260,7 @@ static bool mouseEvent(const SDL_Event* event) {
 	pointer.down = pointer.mouse = true;
 	pointer.x = x;
 	pointer.y = y;
+	pointer.heldUntil = SDL_GetTicks() + TAP_MS;
 	return true;
 }
 
@@ -316,6 +320,7 @@ bool touchEvent(const SDL_Event* event) {
 			pointer.mouse = false;
 			pointer.x = x;
 			pointer.y = y;
+			pointer.heldUntil = SDL_GetTicks() + TAP_MS;
 			return true;
 		}
 	}

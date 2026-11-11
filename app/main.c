@@ -880,6 +880,10 @@ static int16_t inputState(unsigned port, unsigned device, unsigned index, unsign
 		uint16_t const bits = netRunning() ? netInput(port, id) : localButtons(port);
 		return (bits >> id) & 1;
 	}
+	// There's no light gun: it points off the screen.
+	if (device == RETRO_DEVICE_LIGHTGUN) {
+		return id == RETRO_DEVICE_ID_LIGHTGUN_IS_OFFSCREEN;
+	}
 	// A touch or click on the picture, as RetroArch gives it; not in netplay, which doesn't carry it.
 	if (device == RETRO_DEVICE_POINTER && index == 0 && !netRunning()) {
 		int x = 0, y = 0;
