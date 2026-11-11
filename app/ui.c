@@ -36,8 +36,10 @@ enum {
 	// time.
 	REPEAT_FULL_MS = 2000,
 	REPEAT_MIN_MS = 16,
-	// A held L or R steps this often.
+	// A held L or R steps this often, and paging speeds up as the D-pad does, to this often and then two
+	// and four pages at a time.
 	SHOULDER_REPEAT_MS = 200,
+	SHOULDER_MIN_MS = 50,
 	CIRCLES = 16,
 	// How long a tab takes to slide in.
 	SLIDE_MS = 180,
@@ -117,10 +119,11 @@ static struct {
 	Uint32 next, since;
 } held;
 
-// A held L or R, for its repeats.
+// A held L or R, or L2 or R2 in the game list, for its repeats.
 static struct {
 	int way;
-	Uint32 next;
+	bool trigger;
+	Uint32 next, since;
 } shoulder;
 
 // A touch on the menus: where it came down, and whether it's dragged the rows.
@@ -129,7 +132,7 @@ static struct {
 	int x, y, scroll;
 } drag;
 // The rows' height as last drawn, and how far the rows scroll.
-static int lastRowH, lastMaxScroll;
+static int lastRowH, lastMaxScroll, lastRows;
 // The header's back button, where drawn.
 static SDL_Rect backRect;
 // The scroll bar: where it's grabbed, its thumb's height, and whether it's being dragged.
@@ -612,21 +615,36 @@ static void moveSelection(int delta) {
 
 static bool inBrowser(void);
 
-// L and R move between the tabs, jump a letter in the game list, or ten rows elsewhere; held, they
-// go on at an even pace, but not through the tabs.
-static bool shoulderStep(int way) {
-	if (depth == 1 && !entry.open) {
+// A page of rows, stopping at the first or last rather than going round.
+static void movePage(int way) {
+	int const page = lastRows > 1 ? lastRows - 1 : 10;
+	for (int i = 0; i < page; ++i) {
+		int const before = stack[depth - 1].selected;
+		moveSelection(way);
+		int const after = stack[depth - 1].selected;
+		if (way > 0 ? after < before : after > before) {
+			stack[depth - 1].selected = before;
+			break;
+		}
+	}
+}
+
+// L and R move between the tabs, or a page of rows; in the game list, L2 and R2 jump a letter, as in
+// RetroArch. Held, they go on at an even pace, but not through the tabs.
+static bool shoulderStep(int way, bool trigger) {
+	if (entry.open) {
+		return false;
+	}
+	if (trigger) {
+		browserJump(way);
+		return true;
+	}
+	if (depth == 1) {
 		moveTab(way);
 		return false;
 	}
-	if (inBrowser()) {
-		browserJump(way);
-	} else if (!entry.open) {
-		for (int i = 0; i < 10; ++i) {
-			moveSelection(way);
-		}
-	}
-	return !entry.open;
+	movePage(way);
+	return true;
 }
 
 // The first row that can be chosen, or the last.
@@ -950,16 +968,11 @@ bool uiEvent(const SDL_Event* event) {
 		case SDL_SCANCODE_RIGHT:
 			direction(1, 0);
 			break;
-		// Ten rows at a time.
 		case SDL_SCANCODE_PAGEUP:
-			for (int i = 0; i < 10; ++i) {
-				moveSelection(-1);
-			}
+			movePage(-1);
 			break;
 		case SDL_SCANCODE_PAGEDOWN:
-			for (int i = 0; i < 10; ++i) {
-				moveSelection(1);
-			}
+			movePage(1);
 			break;
 		case SDL_SCANCODE_RETURN:
 		case SDL_SCANCODE_KP_ENTER:
@@ -1040,8 +1053,10 @@ bool uiEvent(const SDL_Event* event) {
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
 		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
 			shoulder.way = event->cbutton.button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER ? -1 : 1;
-			shoulder.next = SDL_GetTicks() + REPEAT_DELAY_MS;
-			shoulderStep(shoulder.way);
+			shoulder.trigger = false;
+			shoulder.since = SDL_GetTicks();
+			shoulder.next = shoulder.since + REPEAT_DELAY_MS;
+			shoulderStep(shoulder.way, false);
 			break;
 		default:
 			break;
@@ -1052,18 +1067,30 @@ bool uiEvent(const SDL_Event* event) {
 		if (event->cbutton.button >= SDL_CONTROLLER_BUTTON_DPAD_UP && event->cbutton.button <= SDL_CONTROLLER_BUTTON_DPAD_RIGHT) {
 			held.dx = held.dy = 0;
 		}
-		if (event->cbutton.button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER || event->cbutton.button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER) {
+		if ((event->cbutton.button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER || event->cbutton.button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER) &&
+		    !shoulder.trigger) {
 			shoulder.way = 0;
 		}
 		return true;
 	case SDL_CONTROLLERAXISMOTION:
-		// L2 and R2 go to the first and last row, as in ROCKNIX.
+		// L2 and R2 jump a letter in the game list, as in RetroArch, and go to the first and last row
+		// elsewhere, as in ROCKNIX.
 		if (event->caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT || event->caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT) {
 			static bool pulled[2];
 			int const side = event->caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT;
 			bool const now = event->caxis.value > 16384;
 			if (now && !pulled[side] && !entry.open) {
-				moveToEnd(side ? 1 : -1);
+				if (inBrowser()) {
+					shoulder.way = side ? 1 : -1;
+					shoulder.trigger = true;
+					shoulder.since = SDL_GetTicks();
+					shoulder.next = shoulder.since + REPEAT_DELAY_MS;
+					shoulderStep(shoulder.way, true);
+				} else {
+					moveToEnd(side ? 1 : -1);
+				}
+			} else if (!now && pulled[side] && shoulder.trigger) {
+				shoulder.way = 0;
 			}
 			pulled[side] = now;
 			return true;
@@ -1689,6 +1716,7 @@ static void drawMenu(int width, int height, int u) {
 		m->scroll = m->selected - rows + 1;
 	}
 	lastMaxScroll = SDL_max(0, itemCount - rows);
+	lastRows = rows;
 	m->scroll = SDL_max(0, SDL_min(m->scroll, itemCount - rows));
 	// A scroll bar takes room on the right when the rows don't all fit.
 	bool const scrolls = itemCount > rows;
@@ -1868,8 +1896,15 @@ void uiDraw(void) {
 		viewHeld = true;
 	}
 	if (shoulder.way && app.menuOpen && SDL_TICKS_PASSED(SDL_GetTicks(), shoulder.next)) {
-		shoulder.way = shoulderStep(shoulder.way) ? shoulder.way : 0;
-		shoulder.next = SDL_GetTicks() + SHOULDER_REPEAT_MS;
+		Uint32 const now = SDL_GetTicks(), heldFor = now - shoulder.since;
+		bool const paging = !shoulder.trigger && depth > 1;
+		int const interval = !paging ? SHOULDER_REPEAT_MS : heldFor >= REPEAT_FULL_MS ? SHOULDER_MIN_MS
+		                   : SHOULDER_REPEAT_MS - (SHOULDER_REPEAT_MS - SHOULDER_MIN_MS) * (int) (heldFor - REPEAT_DELAY_MS) / (REPEAT_FULL_MS - REPEAT_DELAY_MS);
+		int const pages = !paging || heldFor < REPEAT_FULL_MS + 1000 ? 1 : heldFor < REPEAT_FULL_MS + 2500 ? 2 : 4;
+		for (int i = 0; i < pages && shoulder.way; ++i) {
+			shoulder.way = shoulderStep(shoulder.way, shoulder.trigger) && (!shoulder.trigger || inBrowser()) ? shoulder.way : 0;
+		}
+		shoulder.next = now + (Uint32) interval;
 	}
 #ifdef __ANDROID__
 	folderPickerPoll();
