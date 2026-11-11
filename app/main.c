@@ -475,6 +475,11 @@ static bool environment(unsigned command, void* data) {
 			*(int*) data = app.avEnable;
 		}
 		return true;
+	case RETRO_ENVIRONMENT_GET_FASTFORWARDING:
+		if (data) {
+			*(bool*) data = app.fastForward;
+		}
+		return true;
 	case RETRO_ENVIRONMENT_SET_FASTFORWARDING_OVERRIDE: {
 		const struct retro_fastforwarding_override* override = data;
 		if (override) {
