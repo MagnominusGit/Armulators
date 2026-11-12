@@ -857,8 +857,8 @@ bool padHotkeyPressed(SDL_JoystickID which, int binding, int action) {
 
 // Player port's buttons here, as libretro's bits: the keyboard plays player 1, and each controller
 // its own player.
-uint16_t localButtons(unsigned port) {
-	if (port >= PORTS || app.menuOpen) {
+static uint16_t readButtons(unsigned port) {
+	if (app.menuOpen) {
 		return 0;
 	}
 	for (int b = 0; b < 32; ++b) {
@@ -874,6 +874,22 @@ uint16_t localButtons(unsigned port) {
 		bits |= held << id;
 	}
 	return bits;
+}
+
+// Each player's buttons, read once between the times the events are taken: they can't change until
+// then, and each read of a controller takes SDL's joystick lock.
+static uint16_t buttonsNow[PORTS];
+static bool buttonsRead[PORTS];
+
+uint16_t localButtons(unsigned port) {
+	if (port >= PORTS) {
+		return 0;
+	}
+	if (!buttonsRead[port]) {
+		buttonsNow[port] = readButtons(port);
+		buttonsRead[port] = true;
+	}
+	return buttonsNow[port];
 }
 
 // The buttons the core reads: netplay's for each player when connected; the sticks only when not.
@@ -1805,6 +1821,7 @@ int main(int argc, char** argv) {
 		}
 		app.fastForward = actionHeld(ACT_FAST_FORWARD) || app.fastForwardOn || coreFastForward;
 		app.rewinding = settings.rewind && app.states && !cheevosHardcore() && !netRunning() && actionHeld(ACT_REWIND);
+		memset(buttonsRead, 0, sizeof(buttonsRead));
 		cheevosIdle();
 		netScanIdle();
 		// Paused, in the menus or without a game: only the picture. Netplay runs on behind the menus.
