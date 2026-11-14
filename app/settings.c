@@ -23,7 +23,7 @@ bool optionsChanged;
 
 const char* actionNames[ACTIONS] = {
 	"Menu", "Fast-Forward", "Rewind", "Pause", "Save State", "Load State", "Previous Slot", "Next Slot",
-	"Screenshot", "Record", "Full Screen", "Restart", "Quit", "Show Frame Rate",
+	"Screenshot", "Record", "Full Screen", "Restart", "Quit", "Show Frame Rate", "Typing",
 };
 
 const char* const buttonNames[KEYS] = { APP_BUTTON_NAMES };
@@ -65,7 +65,7 @@ void settingsDefaults(void) {
 	static const SDL_Scancode hotkeys[ACTIONS] = {
 		SDL_SCANCODE_ESCAPE, SDL_SCANCODE_TAB, SDL_SCANCODE_R, SDL_SCANCODE_P, SDL_SCANCODE_F5, SDL_SCANCODE_F7,
 		SDL_SCANCODE_F6, SDL_SCANCODE_F8, SDL_SCANCODE_F12, SDL_SCANCODE_F9, SDL_SCANCODE_F11, SDL_SCANCODE_F2,
-		SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_F3,
+		SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_F3, SDL_SCANCODE_INSERT,
 	};
 	memcpy(settings.keys, keys, sizeof(keys));
 	memcpy(settings.pad, pad, sizeof(pad));

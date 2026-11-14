@@ -1141,6 +1141,8 @@ static const char* hotkeyHelp(int action, bool controller) {
 		return "Quits " APP_NAME " on a second press, writing the game's save first.";
 	case ACT_FPS:
 		return "Shows or hides the frame rate.";
+	case ACT_KEYBOARD:
+		return "For a game with a keyboard of its own (a computer's): the keyboard types on it, or plays the buttons. Typing turns on with such a game.";
 	default:
 		return NULL;
 	}

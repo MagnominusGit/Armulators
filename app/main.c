@@ -422,6 +422,11 @@ static bool environment(unsigned command, void* data) {
 	case RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME:
 		app.noGame = *(const bool*) data;
 		return true;
+	// A core with a keyboard of its own: the keyboard types on it from the start
+	case RETRO_ENVIRONMENT_SET_KEYBOARD_CALLBACK:
+		app.keyboard = data ? ((const struct retro_keyboard_callback*) data)->callback : NULL;
+		app.typing = app.keyboard != NULL;
+		return true;
 	// What this frontend has no use for, accepted.
 	case RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS:
 	case RETRO_ENVIRONMENT_SET_SUBSYSTEM_INFO:
@@ -870,7 +875,7 @@ static uint16_t readButtons(unsigned port) {
 	uint16_t bits = 0;
 	for (int id = 0; id < BUTTONS; ++id) {
 		bool held = !(padBit(settings.pad[id]) & heldBack[port]) && padHeld(app.pads[port], settings.pad[id]);
-		held |= port == 0 && settings.keys[id] && keys[settings.keys[id]];
+		held |= port == 0 && !app.typing && settings.keys[id] && keys[settings.keys[id]];
 		bits |= held << id;
 	}
 	return bits;
@@ -918,7 +923,7 @@ static int16_t inputState(unsigned port, unsigned device, unsigned index, unsign
 		}
 	}
 	// A stick's keys, held, push it all the way.
-	if (APP_STICK_KEYS && device == RETRO_DEVICE_ANALOG && port == 0 && !app.menuOpen && !netRunning() &&
+	if (APP_STICK_KEYS && device == RETRO_DEVICE_ANALOG && port == 0 && !app.menuOpen && !app.typing && !netRunning() &&
 	    index <= RETRO_DEVICE_INDEX_ANALOG_RIGHT && id <= RETRO_DEVICE_ID_ANALOG_Y) {
 		const Uint8* const keys = SDL_GetKeyboardState(NULL);
 		int const at = BUTTONS + (int) index * 4 + (id == RETRO_DEVICE_ID_ANALOG_Y ? 0 : 2);
@@ -1111,6 +1116,8 @@ void unloadGame(void) {
 	retro_unload_game();
 	hwStop();
 	retro_deinit();
+	app.keyboard = NULL;
+	app.typing = false;
 	haveDiscs = false;
 	memset(&discs, 0, sizeof(discs));
 	app.loaded = false;
@@ -1509,6 +1516,14 @@ static void doAction(enum Action action) {
 		osd("Show Frame Rate: %s", settings.showFps ? "On" : "Off");
 		return;
 	}
+	if (action == ACT_KEYBOARD) {
+		if (app.keyboard) {
+			app.typing = !app.typing;
+			osd(app.typing ? "Keyboard: Typing (%s for the buttons)" : "Keyboard: Buttons (%s for typing)",
+			    scancodeName(settings.hotkeys[ACT_KEYBOARD]));
+		}
+		return;
+	}
 	if (action == ACT_FULLSCREEN) {
 		settings.fullscreen = !settings.fullscreen;
 		applyWindowSize();
@@ -1570,6 +1585,116 @@ static void padPressed(SDL_JoystickID which, int binding) {
 	}
 }
 
+// The keyboard on a core's own keyboard: a key as libretro names it (the same as SDL's for the
+// printable ones), its modifiers, and the characters typed, each a key press of its own.
+static unsigned retroKey(SDL_Keycode key) {
+	if (key >= 32 && key < 127) {
+		return (unsigned) key;
+	}
+	switch (key) {
+	case SDLK_BACKSPACE: return RETROK_BACKSPACE;
+	case SDLK_TAB: return RETROK_TAB;
+	case SDLK_RETURN: return RETROK_RETURN;
+	case SDLK_ESCAPE: return RETROK_ESCAPE;
+	case SDLK_DELETE: return RETROK_DELETE;
+	case SDLK_UP: return RETROK_UP;
+	case SDLK_DOWN: return RETROK_DOWN;
+	case SDLK_LEFT: return RETROK_LEFT;
+	case SDLK_RIGHT: return RETROK_RIGHT;
+	case SDLK_HOME: return RETROK_HOME;
+	case SDLK_END: return RETROK_END;
+	case SDLK_PAGEUP: return RETROK_PAGEUP;
+	case SDLK_PAGEDOWN: return RETROK_PAGEDOWN;
+	case SDLK_INSERT: return RETROK_INSERT;
+	case SDLK_PRINTSCREEN: return RETROK_PRINT;
+	case SDLK_SCROLLLOCK: return RETROK_SCROLLOCK;
+	case SDLK_CAPSLOCK: return RETROK_CAPSLOCK;
+	case SDLK_LSHIFT: return RETROK_LSHIFT;
+	case SDLK_RSHIFT: return RETROK_RSHIFT;
+	case SDLK_LCTRL: return RETROK_LCTRL;
+	case SDLK_RCTRL: return RETROK_RCTRL;
+	case SDLK_LALT: return RETROK_LALT;
+	case SDLK_RALT: return RETROK_RALT;
+	case SDLK_KP_ENTER: return RETROK_KP_ENTER;
+	case SDLK_KP_PLUS: return RETROK_KP_PLUS;
+	case SDLK_KP_MINUS: return RETROK_KP_MINUS;
+	case SDLK_KP_MULTIPLY: return RETROK_KP_MULTIPLY;
+	case SDLK_KP_DIVIDE: return RETROK_KP_DIVIDE;
+	case SDLK_KP_EQUALS: return RETROK_KP_EQUALS;
+	case SDLK_KP_PERIOD: return RETROK_KP_PERIOD;
+	}
+	if (key >= SDLK_F1 && key <= SDLK_F12) {
+		return RETROK_F1 + (unsigned) (key - SDLK_F1);
+	}
+	if (key >= SDLK_KP_1 && key <= SDLK_KP_9) {
+		return RETROK_KP1 + (unsigned) (key - SDLK_KP_1);
+	}
+	return key == SDLK_KP_0 ? RETROK_KP0 : RETROK_UNKNOWN;
+}
+
+// The modifiers as the key event had them (not as they are when it's handled, which may be later)
+static uint16_t retroModifiers(Uint16 mod) {
+	return (mod & KMOD_SHIFT ? RETROKMOD_SHIFT : 0) | (mod & KMOD_CTRL ? RETROKMOD_CTRL : 0) |
+	       (mod & KMOD_ALT ? RETROKMOD_ALT : 0) | (mod & KMOD_GUI ? RETROKMOD_META : 0) |
+	       (mod & KMOD_CAPS ? RETROKMOD_CAPSLOCK : 0) | (mod & KMOD_NUM ? RETROKMOD_NUMLOCK : 0);
+}
+
+// The first character of UTF-8 text
+static uint32_t firstCharacter(const char* text) {
+	const unsigned char* t = (const unsigned char*) text;
+	if (t[0] < 0x80) {
+		return t[0];
+	}
+	if ((t[0] & 0xE0) == 0xC0 && t[1]) {
+		return (uint32_t) (t[0] & 0x1F) << 6 | (t[1] & 0x3F);
+	}
+	if ((t[0] & 0xF0) == 0xE0 && t[1] && t[2]) {
+		return (uint32_t) (t[0] & 0x0F) << 12 | (uint32_t) (t[1] & 0x3F) << 6 | (t[2] & 0x3F);
+	}
+	return 0;
+}
+
+// While typing, the keyboard's keys go to the core, all but the Typing hotkey's, which switches back
+// to the buttons; the menu still opens from a controller, the mouse or Back.
+static bool typingEvent(const SDL_Event* event) {
+	static Uint16 typedWith;
+	if (!app.typing || !app.keyboard || !app.loaded || app.menuOpen) {
+		return false;
+	}
+	if (!SDL_IsTextInputActive()) {
+		SDL_StartTextInput();
+	}
+	switch (event->type) {
+	case SDL_KEYDOWN:
+	case SDL_KEYUP:
+		if (event->key.keysym.scancode == SDL_SCANCODE_AC_BACK) {
+			return false;
+		}
+		if (event->key.keysym.scancode == settings.hotkeys[ACT_KEYBOARD]) {
+			if (event->type == SDL_KEYDOWN && !event->key.repeat) {
+				doAction(ACT_KEYBOARD);
+			}
+			return true;
+		}
+		if (event->type == SDL_KEYDOWN) {
+			typedWith = event->key.keysym.mod;
+		}
+		if (!event->key.repeat) {
+			app.keyboard(event->type == SDL_KEYDOWN, retroKey(event->key.keysym.sym), 0, retroModifiers(event->key.keysym.mod));
+		}
+		return true;
+	case SDL_TEXTINPUT: {
+		// Text comes after the key press that typed it, with that press's modifiers
+		uint32_t const character = firstCharacter(event->text.text);
+		if (character) {
+			app.keyboard(true, RETROK_UNKNOWN, character, retroModifiers(typedWith));
+		}
+		return true;
+	}
+	}
+	return false;
+}
+
 // An event the menus didn't take: quitting, a file dropped on the window to load, controllers
 // plugged in or out, hotkeys, and a right-click for the menu.
 static void handleEvent(const SDL_Event* given) {
@@ -1581,6 +1706,9 @@ static void handleEvent(const SDL_Event* given) {
 		placed.cbutton.button = (Uint8) facePlace(SDL_GameControllerFromInstanceID(given->cbutton.which), given->cbutton.button);
 	}
 	SDL_Event const* const event = &placed;
+	if (typingEvent(event)) {
+		return;
+	}
 	if (uiEvent(event) || touchEvent(event)) {
 		return;
 	}
@@ -1653,7 +1781,7 @@ static bool actionHeld(enum Action action) {
 		return false;
 	}
 	const Uint8* keys = SDL_GetKeyboardState(NULL);
-	bool held = settings.hotkeys[action] && keys[settings.hotkeys[action]];
+	bool held = !app.typing && settings.hotkeys[action] && keys[settings.hotkeys[action]];
 	// A controller's Fast-Forward turns on and off instead.
 	for (int port = 0; port < PORTS && action != ACT_FAST_FORWARD; ++port) {
 		SDL_GameController* const pad = app.pads[port];

@@ -57,6 +57,8 @@ enum Action {
 	ACT_RESET,
 	ACT_QUIT,
 	ACT_FPS,
+	// For a core with a keyboard of its own (a computer's): the keyboard types on it, or plays the buttons
+	ACT_KEYBOARD,
 	ACTIONS,
 };
 
@@ -225,6 +227,10 @@ struct App {
 	size_t gameSize;
 	bool paused;
 	bool menuOpen;
+	// The core's keyboard (RETRO_ENVIRONMENT_SET_KEYBOARD_CALLBACK), and whether the keyboard types on it
+	// rather than playing the buttons
+	retro_keyboard_event_t keyboard;
+	bool typing;
 	bool running;
 	bool fastForward;
 	// Fast-forward turned on by the controller's hotkey, until it's pressed again.
