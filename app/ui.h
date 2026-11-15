@@ -34,6 +34,9 @@ struct Item {
 	bool path;
 	// Save State or Load State: selected, the slot's picture is shown.
 	bool state;
+	// A progress bar where the value goes, filled to percent (none filled below 0), the value before it.
+	bool bar;
+	int percent;
 };
 
 struct Menu {
@@ -55,6 +58,8 @@ extern int depth;
 struct Item* addItem(const char* label, ItemFunction function, int argument);
 void addHeader(const char* label);
 void addValue(const char* label, const char* value, ItemFunction function, int argument);
+// A row with a progress bar, 0 to 100 (or -1 not known yet), and a value such as "12 of 40 MB" before it.
+void addProgress(const char* label, const char* value, int percent);
 void addChoice(const char* label, const char* value, ItemFunction function, int argument);
 void addInfo(const char* label, const char* value);
 void helpFor(const char* help);

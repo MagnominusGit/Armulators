@@ -57,8 +57,9 @@ public final class Http {
 		}
 	}
 
-	// Writes the answer's body to path as it arrives, with its HTTP code in status[0]: true once it's
-	// all written, with code 200.
+	// Writes the answer's body to path as it arrives, with its HTTP code in status[0] (and with room,
+	// the KiB written so far in status[1] and in all in status[2]): true once it's all written, with
+	// code 200.
 	public static boolean download(String url, String path, String userAgent, int[] status) {
 		HttpURLConnection connection = null;
 		try {
@@ -71,12 +72,21 @@ public final class Http {
 			if (status[0] != 200) {
 				return false;
 			}
+			// The KiB in all, and so far as they're written, which the app reads for its progress bar
+			if (status.length > 2) {
+				status[2] = (int) (connection.getContentLengthLong() / 1024);
+			}
 			InputStream in = connection.getInputStream();
 			FileOutputStream out = new FileOutputStream(path);
 			try {
 				byte[] buffer = new byte[65536];
+				long written = 0;
 				for (int n; (n = in.read(buffer)) > 0;) {
 					out.write(buffer, 0, n);
+					written += n;
+					if (status.length > 1) {
+						status[1] = (int) (written / 1024);
+					}
 				}
 			} finally {
 				out.close();

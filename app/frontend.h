@@ -456,6 +456,8 @@ void netInit(void);
 // server couldn't be reached or the file written, -1 without httpPrepare.
 bool httpPrepare(void);
 int httpDownload(const char* url, const char* path);
+// The download under way's KiB so far and in all (0 until the server says), for a progress bar.
+void httpProgress(int* doneKib, int* allKib);
 
 // cheevos.c
 void cheevosInit(void);

@@ -387,6 +387,14 @@ void addValue(const char* label, const char* value, ItemFunction function, int a
 	item->adjustable = true;
 }
 
+// A row with a progress bar, which the menu, built again each frame, shows going on.
+void addProgress(const char* label, const char* value, int percent) {
+	struct Item* item = addItem(label, NULL, 0);
+	snprintf(item->value, sizeof(item->value), "%s", value);
+	item->bar = true;
+	item->percent = percent;
+}
+
 // A value that is chosen, not stepped through.
 void addChoice(const char* label, const char* value, ItemFunction function, int argument) {
 	struct Item* item = addItem(label, function, argument);
@@ -1785,8 +1793,22 @@ static void drawMenu(int width, int height, int u) {
 		int const ty = y + (rowH - size) / 2;
 		int valueL = textR;
 		const char* shownValue = item->value;
-		// A value is right-aligned; with arrows round it, kept for clicks, when it's selected and can change.
-		if (shownValue[0]) {
+		if (item->bar) {
+			// The bar right-aligned, a third of the row, its value before it
+			int const bw = (textR - textL) / 3, bh = SDL_max(4, u / 3);
+			SDL_Rect const track = { textR - bw, y + (rowH - bh) / 2, bw, bh };
+			fillRounded(track, bh / 2, faded(accent, 70));
+			if (item->percent > 0) {
+				fillRounded((SDL_Rect) { track.x, track.y, SDL_max(bh, bw * SDL_min(item->percent, 100) / 100), bh }, bh / 2, accent);
+			}
+			valueL = track.x - u / 2;
+			if (shownValue[0]) {
+				valueL -= textWidth(face, size, shownValue);
+				textDraw(face, size, valueL, ty, on ? white : text, shownValue);
+				valueL -= u / 2;
+			}
+		} else if (shownValue[0]) {
+			// A value is right-aligned; with arrows round it, kept for clicks, when it's selected and can change.
 			char value[NAME_SIZE + 64];
 			int const arrows = on && item->adjustable ? textWidth(face, size, "\xE2\x80\xB9") + u / 2 : 0;
 			textFit(face, size, shownValue, (textR - textL) / 2 - 2 * arrows, false, value, sizeof(value));

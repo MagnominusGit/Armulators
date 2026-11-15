@@ -18,6 +18,21 @@
 #endif
 
 static char userAgent[128];
+// The download under way: its bytes so far and in all (0 until known), in KiB
+static SDL_atomic_t receivedKib, totalKib;
+
+#ifdef __ANDROID__
+void httpAndroidProgress(int* doneKib, int* allKib);
+#endif
+
+void httpProgress(int* doneKib, int* allKib) {
+#ifdef __ANDROID__
+	httpAndroidProgress(doneKib, allKib);
+#else
+	*doneKib = SDL_AtomicGet(&receivedKib);
+	*allKib = SDL_AtomicGet(&totalKib);
+#endif
+}
 
 #ifndef __ANDROID__
 
@@ -29,6 +44,8 @@ enum {
 	CURLOPT_WRITEFUNCTION = 20011,
 	CURLOPT_LOW_SPEED_LIMIT = 19,
 	CURLOPT_LOW_SPEED_TIME = 20,
+	CURLOPT_NOPROGRESS = 43,
+	CURLOPT_XFERINFOFUNCTION = 20219,
 	CURLOPT_FOLLOWLOCATION = 52,
 	CURLOPT_CONNECTTIMEOUT = 78,
 	CURLOPT_NOSIGNAL = 99,
@@ -78,6 +95,15 @@ static size_t written(char* data, size_t size, size_t count, void* file) {
 	return fwrite(data, 1, size * count, file);
 }
 
+static int progressed(void* unused, int64_t all, int64_t done, int64_t upAll, int64_t up) {
+	(void) unused;
+	(void) upAll;
+	(void) up;
+	SDL_AtomicSet(&receivedKib, (int) (done / 1024));
+	SDL_AtomicSet(&totalKib, (int) (all / 1024));
+	return 0;
+}
+
 int httpDownload(const char* url, const char* path) {
 	if (!curl.library) {
 		return -1;
@@ -89,7 +115,11 @@ int httpDownload(const char* url, const char* path) {
 	void* const handle = curl.init();
 	long code = 0;
 	int failed = 1;
+	SDL_AtomicSet(&receivedKib, 0);
+	SDL_AtomicSet(&totalKib, 0);
 	if (handle) {
+		curl.setopt(handle, CURLOPT_NOPROGRESS, 0L);
+		curl.setopt(handle, CURLOPT_XFERINFOFUNCTION, progressed);
 		curl.setopt(handle, CURLOPT_URL, url);
 		curl.setopt(handle, CURLOPT_USERAGENT, userAgent);
 		curl.setopt(handle, CURLOPT_WRITEFUNCTION, written);
@@ -114,6 +144,8 @@ int httpDownload(const char* url, const char* path) {
 // can't find the app's classes by name.
 static jclass http;
 static jmethodID httpGet;
+// [code, KiB so far, KiB in all], written by Http.download as it goes
+static jintArray status;
 
 static bool load(void) {
 	if (http) {
@@ -147,19 +179,40 @@ int httpDownload(const char* url, const char* path) {
 	jstring const jurl = (*env)->NewStringUTF(env, url);
 	jstring const jpath = (*env)->NewStringUTF(env, path);
 	jstring const agent = (*env)->NewStringUTF(env, userAgent);
-	jintArray const code = (*env)->NewIntArray(env, 1);
+	jintArray const local = (*env)->NewIntArray(env, 3);
+	jintArray const code = local ? (*env)->NewGlobalRef(env, local) : NULL;
+	(*env)->DeleteLocalRef(env, local);
+	if (!code) {
+		(*env)->DeleteLocalRef(env, jurl);
+		(*env)->DeleteLocalRef(env, jpath);
+		(*env)->DeleteLocalRef(env, agent);
+		return 0;
+	}
+	SDL_AtomicSetPtr((void**) &status, code);
 	jboolean ok = (*env)->CallStaticBooleanMethod(env, http, httpGet, jurl, jpath, agent, code);
+	SDL_AtomicSetPtr((void**) &status, NULL);
 	if ((*env)->ExceptionCheck(env)) {
 		(*env)->ExceptionClear(env);
 		ok = JNI_FALSE;
 	}
-	jint status = 0;
-	(*env)->GetIntArrayRegion(env, code, 0, 1, &status);
+	jint result = 0;
+	(*env)->GetIntArrayRegion(env, code, 0, 1, &result);
 	(*env)->DeleteLocalRef(env, jurl);
 	(*env)->DeleteLocalRef(env, jpath);
 	(*env)->DeleteLocalRef(env, agent);
-	(*env)->DeleteLocalRef(env, code);
-	return ok ? (int) status : 0;
+	(*env)->DeleteGlobalRef(env, code);
+	return ok ? (int) result : 0;
+}
+
+void httpAndroidProgress(int* doneKib, int* allKib) {
+	jintArray const now = SDL_AtomicGetPtr((void**) &status);
+	JNIEnv* const env = now ? SDL_AndroidGetJNIEnv() : NULL;
+	jint got[2] = { 0, 0 };
+	if (env) {
+		(*env)->GetIntArrayRegion(env, now, 1, 2, got);
+	}
+	*doneKib = got[0];
+	*allKib = got[1];
 }
 
 #endif
