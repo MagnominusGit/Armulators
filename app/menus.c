@@ -723,6 +723,9 @@ static void cheatsMenu(void) {
 	addItem("Load Cheat File...", openCheatFiles, 0);
 	snprintf(fileHelp, sizeof(fileHelp), "Adds the cheats in a RetroArch .cht file. This game's cheats are kept in %s.", cheatDirectory);
 	helpFor(fileHelp);
+	if (appHooks.cheatRows) {
+		appHooks.cheatRows();
+	}
 	if (!cheatCount) {
 		addInfo("No cheats for this game yet", "");
 	} else {
