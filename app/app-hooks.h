@@ -54,6 +54,8 @@ struct AppHooks {
 	void (*playOn)(void);
 	// Save Manager's folders: save folders, game folders, and whether the game folders come first.
 	void (*saveManagerFolders)(const char* const* saves, int saveCount, const char* const* games, int gameCount, bool gamesFirst);
+	// Rows at the end of the Extras tab.
+	void (*extrasRows)(void);
 	// The console RetroAchievements files a game under (rc_consoles.h), 0 when unknown.
 	uint32_t (*cheevosConsole)(const uint8_t* data, size_t size);
 	// The core's discs, by what the player knows them as: the Game tab's row for them, one of them,

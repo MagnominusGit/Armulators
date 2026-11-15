@@ -2022,6 +2022,9 @@ static void extrasTab(void) {
 	}
 	addItem("Achievements...", openCheevos, 0);
 	helpFor("RetroAchievements: log in, hardcore mode, and this game's achievements.");
+	if (appHooks.extrasRows) {
+		appHooks.extrasRows();
+	}
 }
 
 const char* const tabNames[TABS] = { "General", "Game", "Core", "Extras" };
