@@ -6,6 +6,7 @@
 package @APP_JAVA_PACKAGE@;
 
 import java.io.ByteArrayOutputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -13,7 +14,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 // RetroAchievements' requests on Android, which has no libcurl, through its own HTTPS; called from
-// the achievements' worker thread (app/cheevos.c).
+// the achievements' worker thread (app/cheevos.c). And downloads to a file (app/http.c).
 public final class Http {
 	private Http() {
 	}
@@ -49,6 +50,41 @@ public final class Http {
 			return body.toByteArray();
 		} catch (IOException e) {
 			return null;
+		} finally {
+			if (connection != null) {
+				connection.disconnect();
+			}
+		}
+	}
+
+	// Writes the answer's body to path as it arrives, with its HTTP code in status[0]: true once it's
+	// all written, with code 200.
+	public static boolean download(String url, String path, String userAgent, int[] status) {
+		HttpURLConnection connection = null;
+		try {
+			connection = (HttpURLConnection) new URL(url).openConnection();
+			connection.setConnectTimeout(30000);
+			connection.setReadTimeout(60000);
+			connection.setInstanceFollowRedirects(true);
+			connection.setRequestProperty("User-Agent", userAgent);
+			status[0] = connection.getResponseCode();
+			if (status[0] != 200) {
+				return false;
+			}
+			InputStream in = connection.getInputStream();
+			FileOutputStream out = new FileOutputStream(path);
+			try {
+				byte[] buffer = new byte[65536];
+				for (int n; (n = in.read(buffer)) > 0;) {
+					out.write(buffer, 0, n);
+				}
+			} finally {
+				out.close();
+				in.close();
+			}
+			return true;
+		} catch (IOException e) {
+			return false;
 		} finally {
 			if (connection != null) {
 				connection.disconnect();

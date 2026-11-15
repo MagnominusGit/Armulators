@@ -451,6 +451,12 @@ uint16_t netInput(unsigned port, unsigned id);
 bool netRollingBack(void);
 void netInit(void);
 
+// http.c: downloads to a file. httpPrepare (on the main thread, first) is false when there is no way
+// to download (no libcurl); httpDownload (on a worker thread) returns the HTTP status, 0 when the
+// server couldn't be reached or the file written, -1 without httpPrepare.
+bool httpPrepare(void);
+int httpDownload(const char* url, const char* path);
+
 // cheevos.c
 void cheevosInit(void);
 void cheevosLogin(const char* user, const char* password);
