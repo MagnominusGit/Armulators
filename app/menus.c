@@ -581,7 +581,20 @@ static void cheatFillDone(const char* text) {
 static void askCheatFill(bool thenOn) {
 	static char hint[96];
 	int const digits = cheatFillDigits(cheats[cheatShown].code);
-	snprintf(hint, sizeof(hint), "What goes in its %s: %d hex digit%s (0-9, A-F).", digits == 1 ? "X" : "XX", digits, digits == 1 ? "" : "s");
+	// The code's own mark, such as XX, YY or ??
+	char mark[8] = "XX";
+	for (const char* p = cheats[cheatShown].code; *p; ++p) {
+		if (strchr("XxYyZz?", *p)) {
+			int n = 0;
+			while (n + 1 < (int) sizeof(mark) && p[n] == *p) {
+				mark[n] = p[n];
+				++n;
+			}
+			mark[n] = '\0';
+			break;
+		}
+	}
+	snprintf(hint, sizeof(hint), "What goes in its %s: %d hex digit%s (0-9, A-F).", mark, digits, digits == 1 ? "" : "s");
 	fillThenOn = thenOn;
 	openEntry("Cheat Value", hint, cheats[cheatShown].fill, false, cheatFillDone);
 }
@@ -632,7 +645,7 @@ static void cheatMenu(void) {
 	helpFor("The cheat's code; choose it to change it.");
 	if (cheatFillDigits(c->code)) {
 		addChoice("Value", c->fill[0] ? c->fill : "Not Set", cheatEdit, 3);
-		helpFor("What goes in place of the XX or ?? in its code, in hex, such as a level or an amount. Until it's set, the cheat does nothing.");
+		helpFor("What goes in place of the XX, YY or ?? in its code, in hex, such as a level or an amount. Until it's set, the cheat does nothing.");
 	}
 	addChoice("Name", c->description, cheatEdit, 1);
 	helpFor("What the cheat list calls it; choose it to change it.");

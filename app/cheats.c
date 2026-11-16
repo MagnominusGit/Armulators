@@ -9,6 +9,7 @@
 
 #include "frontend.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -114,20 +115,39 @@ void cheatListSave(void) {
 }
 
 static bool isFillMark(char c) {
-	return c == 'X' || c == 'x' || c == '?';
+	return c == 'X' || c == 'x' || c == 'Y' || c == 'y' || c == 'Z' || c == 'z' || c == '?';
 }
 
+// A run of one mark: XX, YY, ZZ or ??, as long as it is.
+static int fillRun(const char* p) {
+	int run = 0;
+	while (isFillMark(p[run]) && (p[run] | 0x20) == (p[0] | 0x20)) {
+		++run;
+	}
+	return run;
+}
+
+// A template is a hex code (it has a digit, as no NES Game Genie code does, where X, Y and Z are
+// letters of the code) whose only other characters are runs of one mark and separators. Returns its
+// longest run, 0 for a code that isn't one.
 int cheatFillDigits(const char* code) {
 	int longest = 0;
+	bool digit = false;
 	for (const char* p = code; *p;) {
-		int run = 0;
-		while (isFillMark(p[run])) {
-			++run;
+		int const run = fillRun(p);
+		if (run) {
+			longest = run > longest ? run : longest;
+			p += run;
+			continue;
 		}
-		longest = run > longest ? run : longest;
-		p += run ? run : 1;
+		if (isdigit((unsigned char) *p)) {
+			digit = true;
+		} else if (!isxdigit((unsigned char) *p) && !strchr("+-: ", *p)) {
+			return 0;
+		}
+		++p;
 	}
-	return longest;
+	return digit ? longest : 0;
 }
 
 // Each run of XX or ?? takes the fill's last digits, as many as it has, the fill padded with zeros.
@@ -148,10 +168,7 @@ bool cheatFilledCode(const struct Cheat* c, char* out, size_t size) {
 	memcpy(fill + pad, c->fill, given + 1);
 	size_t const length = pad + given;
 	for (char* p = out; *p;) {
-		int run = 0;
-		while (isFillMark(p[run])) {
-			++run;
-		}
+		int const run = fillRun(p);
 		for (int k = 0; k < run; ++k) {
 			p[k] = fill[length - run + k];
 		}
