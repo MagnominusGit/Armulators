@@ -712,6 +712,21 @@ static void openDiscs(int argument, int delta) {
 	}
 }
 
+// Delete All Cheats: this game's list emptied, and its cheat file gone with it.
+static void cheatDeleteAll(int argument, int delta) {
+	(void) argument;
+	if (delta || !cheatCount) {
+		return;
+	}
+	int const deleted = cheatCount;
+	while (cheatCount) {
+		cheatListRemove(cheatCount - 1);
+	}
+	cheatListApply();
+	cheatListSave();
+	osd(deleted == 1 ? "Deleted 1 cheat" : "Deleted %d cheats", deleted);
+}
+
 static void cheatsMenu(void) {
 	static char fileHelp[PATH_SIZE + 128];
 	if (cheevosHardcore()) {
@@ -729,11 +744,14 @@ static void cheatsMenu(void) {
 	if (!cheatCount) {
 		addInfo("No cheats for this game yet", "");
 	} else {
+		addItem("Delete All Cheats", cheatDeleteAll, 0);
+		helpFor("Takes every cheat off this game's list. One cheat's own page deletes just that one.");
+		items[itemCount - 1].confirm = true;
 		addHeader("Cheats");
 	}
 	for (int i = 0; i < cheatCount; ++i) {
 		addValue(cheats[i].description, onOff(cheats[i].enabled), cheatOpen, i);
-		helpFor("Left and right turn it on or off; choose it to change it.");
+		helpFor("Left and right turn it on or off; choose it to change or delete it.");
 	}
 }
 
