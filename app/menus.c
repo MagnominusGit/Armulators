@@ -534,13 +534,56 @@ static int cheatShown;
 
 static void cheatMenu(void);
 
+static void askCheatFill(bool thenOn);
+
+// Turning on a cheat whose code has XX or ?? in it, with nothing for them yet, asks for that first.
 static void cheatToggle(int index, int delta) {
 	(void) delta;
-	if (index < cheatCount) {
-		cheats[index].enabled = !cheats[index].enabled;
-		cheatListApply();
-		cheatListSave();
+	if (index >= cheatCount) {
+		return;
 	}
+	if (!cheats[index].enabled && cheatFillDigits(cheats[index].code) && !cheats[index].fill[0]) {
+		cheatShown = index;
+		askCheatFill(true);
+		return;
+	}
+	cheats[index].enabled = !cheats[index].enabled;
+	cheatListApply();
+	cheatListSave();
+}
+
+// A cheat's Value: hex digits, as many as its code's XX or ?? take, or fewer (zeros go before them).
+static bool fillThenOn;
+
+static void cheatFillDone(const char* text) {
+	if (cheatShown >= cheatCount) {
+		return;
+	}
+	struct Cheat* const c = &cheats[cheatShown];
+	int const digits = cheatFillDigits(c->code);
+	size_t const length = strlen(text);
+	bool hex = length > 0 && (int) length <= digits && length < sizeof(c->fill);
+	for (size_t i = 0; hex && i < length; ++i) {
+		hex = isxdigit((unsigned char) text[i]);
+	}
+	if (!hex) {
+		osd(digits == 1 ? "Value: 1 hex digit (0-9, A-F)" : "Value: up to %d hex digits (0-9, A-F)", digits);
+		return;
+	}
+	for (size_t i = 0; i <= length; ++i) {
+		c->fill[i] = (char) toupper((unsigned char) text[i]);
+	}
+	c->enabled = c->enabled || fillThenOn;
+	cheatListApply();
+	cheatListSave();
+}
+
+static void askCheatFill(bool thenOn) {
+	static char hint[96];
+	int const digits = cheatFillDigits(cheats[cheatShown].code);
+	snprintf(hint, sizeof(hint), "What goes in its %s: %d hex digit%s (0-9, A-F).", digits == 1 ? "X" : "XX", digits, digits == 1 ? "" : "s");
+	fillThenOn = thenOn;
+	openEntry("Cheat Value", hint, cheats[cheatShown].fill, false, cheatFillDone);
 }
 
 static void cheatCodeDone(const char* text) {
@@ -567,6 +610,8 @@ static void cheatEdit(int which, int delta) {
 		openEntry("Cheat Code", "Action Replay, GameShark, CodeBreaker or Game Genie.", cheats[cheatShown].code, false, cheatCodeDone);
 	} else if (which == 1) {
 		openEntry("Cheat Name", NULL, cheats[cheatShown].description, false, cheatNameDone);
+	} else if (which == 3) {
+		askCheatFill(false);
 	} else {
 		cheatListRemove(cheatShown);
 		cheatListApply();
@@ -585,6 +630,10 @@ static void cheatMenu(void) {
 	helpFor("Whether the cheat is on while you play.");
 	addChoice("Code", c->code, cheatEdit, 0);
 	helpFor("The cheat's code; choose it to change it.");
+	if (cheatFillDigits(c->code)) {
+		addChoice("Value", c->fill[0] ? c->fill : "Not Set", cheatEdit, 3);
+		helpFor("What goes in place of the XX or ?? in its code, in hex, such as a level or an amount. Until it's set, the cheat does nothing.");
+	}
 	addChoice("Name", c->description, cheatEdit, 1);
 	helpFor("What the cheat list calls it; choose it to change it.");
 	addItem("Delete", cheatEdit, 2);
@@ -750,8 +799,15 @@ static void cheatsMenu(void) {
 		addHeader("Cheats");
 	}
 	for (int i = 0; i < cheatCount; ++i) {
-		addValue(cheats[i].description, onOff(cheats[i].enabled), cheatOpen, i);
-		helpFor("Left and right turn it on or off; choose it to change or delete it.");
+		if (cheatFillDigits(cheats[i].code)) {
+			char value[48];
+			snprintf(value, sizeof(value), "%s (%s)", onOff(cheats[i].enabled), cheats[i].fill[0] ? cheats[i].fill : "Value Not Set");
+			addValue(cheats[i].description, value, cheatOpen, i);
+			helpFor("Left and right turn it on or off (asking for its value first); choose it to change its value, or delete it.");
+		} else {
+			addValue(cheats[i].description, onOff(cheats[i].enabled), cheatOpen, i);
+			helpFor("Left and right turn it on or off; choose it to change or delete it.");
+		}
 	}
 }
 

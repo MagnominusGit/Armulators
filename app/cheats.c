@@ -4,7 +4,8 @@
  * Licensed under the GNU General Public License, version 2 or (at your option) any later version: see LICENSE. */
 
 // Cheats, a file for each game in ~/.local/share/armgba/cheats, in RetroArch's .cht form, so its
-// cheat files work here too: cheats = N, then cheatI_desc, cheatI_code and cheatI_enable.
+// cheat files work here too: cheats = N, then cheatI_desc, cheatI_code and cheatI_enable, and for a
+// code with XX or ?? in it, cheatI_fill, the hex digits that go there (which RetroArch passes over).
 
 #include "frontend.h"
 
@@ -60,6 +61,8 @@ static bool readCheats(const char* path, int base) {
 			snprintf(c->code, sizeof(c->code), "%s", value);
 		} else if (!strcmp(field, "enable")) {
 			c->enabled = !strcmp(value, "true");
+		} else if (!strcmp(field, "fill")) {
+			snprintf(c->fill, sizeof(c->fill), "%s", value);
 		}
 	}
 	fclose(f);
@@ -100,21 +103,74 @@ void cheatListSave(void) {
 	}
 	fprintf(f, "cheats = %d\n\n", cheatCount);
 	for (int i = 0; i < cheatCount; ++i) {
-		fprintf(f, "cheat%d_desc = \"%s\"\ncheat%d_code = \"%s\"\ncheat%d_enable = %s\n\n", i, cheats[i].description, i, cheats[i].code, i,
+		fprintf(f, "cheat%d_desc = \"%s\"\ncheat%d_code = \"%s\"\ncheat%d_enable = %s\n", i, cheats[i].description, i, cheats[i].code, i,
 		        cheats[i].enabled ? "true" : "false");
+		if (cheats[i].fill[0]) {
+			fprintf(f, "cheat%d_fill = \"%s\"\n", i, cheats[i].fill);
+		}
+		fputc('\n', f);
 	}
 	fclose(f);
 }
 
-// The core takes the enabled ones; none in hardcore mode.
+static bool isFillMark(char c) {
+	return c == 'X' || c == 'x' || c == '?';
+}
+
+int cheatFillDigits(const char* code) {
+	int longest = 0;
+	for (const char* p = code; *p;) {
+		int run = 0;
+		while (isFillMark(p[run])) {
+			++run;
+		}
+		longest = run > longest ? run : longest;
+		p += run ? run : 1;
+	}
+	return longest;
+}
+
+// Each run of XX or ?? takes the fill's last digits, as many as it has, the fill padded with zeros.
+bool cheatFilledCode(const struct Cheat* c, char* out, size_t size) {
+	int const digits = cheatFillDigits(c->code);
+	snprintf(out, size, "%s", c->code);
+	if (!digits) {
+		return true;
+	}
+	if (!c->fill[0] || digits > 64) {
+		return false;
+	}
+	// The fill, zeros before it up to the longest run
+	char fill[sizeof(c->fill) + 64];
+	size_t const given = strlen(c->fill);
+	size_t const pad = (size_t) digits > given ? (size_t) digits - given : 0;
+	memset(fill, '0', pad);
+	memcpy(fill + pad, c->fill, given + 1);
+	size_t const length = pad + given;
+	for (char* p = out; *p;) {
+		int run = 0;
+		while (isFillMark(p[run])) {
+			++run;
+		}
+		for (int k = 0; k < run; ++k) {
+			p[k] = fill[length - run + k];
+		}
+		p += run ? run : 1;
+	}
+	return true;
+}
+
+// The core takes the enabled ones, their XX or ?? filled in (one without its fill waits); none in
+// hardcore mode.
 void cheatListApply(void) {
 	if (!app.loaded) {
 		return;
 	}
 	retro_cheat_reset();
 	for (int i = 0; i < cheatCount && !cheevosHardcore(); ++i) {
-		if (cheats[i].enabled && cheats[i].code[0]) {
-			retro_cheat_set(i, true, cheats[i].code);
+		char code[sizeof(cheats[i].code)];
+		if (cheats[i].enabled && cheats[i].code[0] && cheatFilledCode(&cheats[i], code, sizeof(code))) {
+			retro_cheat_set(i, true, code);
 		}
 	}
 }

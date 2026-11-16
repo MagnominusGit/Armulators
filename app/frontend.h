@@ -392,6 +392,9 @@ struct Cheat {
 	char description[128];
 	char code[256];
 	bool enabled;
+	// For a code with XX or ?? in it (a template, as RetroArch's cheat database has some), the hex
+	// digits they take; empty until given.
+	char fill[16];
 };
 extern struct Cheat* cheats;
 extern int cheatCount;
@@ -402,6 +405,10 @@ void cheatListAdd(const char* description, const char* code);
 void cheatListRemove(int index);
 // Adds a RetroArch .cht file's cheats to the game's; returns how many, or -1 if it can't be read.
 int cheatListImport(const char* path);
+// How many hex digits a cheat's code takes for its XX or ?? (its longest run of them), 0 for none.
+int cheatFillDigits(const char* code);
+// The code with its XX or ?? filled in from fill; false while it has them and no fill.
+bool cheatFilledCode(const struct Cheat* c, char* out, size_t size);
 
 // net.c
 enum NetMode {
