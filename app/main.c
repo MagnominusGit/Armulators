@@ -48,6 +48,9 @@ static unsigned bytesPerFrame;
 // The resampler's place: how far into the next frame's sound its next sample falls (from -1, the
 // last frame's last sample), and that sample.
 static double soundPhase;
+// How much faster than its own rate the game runs while its frames are locked to the screen's
+// refreshes (60 Hz for a 59.73 Hz game: 1.0046), which its sound is resampled for; 1 otherwise.
+static double gameSpeed = 1;
 static int16_t soundLast[2];
 
 // The sound device, at rate: stereo, the system converting to its own rate if it has to. Without
@@ -1427,7 +1430,7 @@ static void sendSound(void) {
 	static int16_t out[2 * 8192];
 	size_t const most = sizeof(out) / sizeof(*out) / 2;
 	// Input samples per output sample; sample -1 is the last frame's last.
-	double const step = app.soundRate / (audioRate * ratio);
+	double const step = app.soundRate * gameSpeed / (audioRate * ratio);
 	int const volume = settings.volume * 256 / 100;
 	size_t outFrames = 0;
 	double at = soundPhase;
@@ -1940,6 +1943,10 @@ int main(int argc, char** argv) {
 	double frameTicks = frequency / app.frameRate;
 	Uint64 last = SDL_GetPerformanceCounter(), fpsSince = last;
 	double owed = 0;
+	// With vsync, the screen's refresh as measured between passes (in counter ticks; 0 until a few have
+	// been), and the refreshes counted toward the next frame while locked to them.
+	double refreshTicks = 0;
+	int refreshSamples = 0, refreshesOwed = 0;
 	unsigned frame = 0, fpsFrames = framesDrawn;
 	app.running = true;
 	while (app.running) {
@@ -1966,15 +1973,44 @@ int main(int argc, char** argv) {
 			owed = 0;
 			continue;
 		}
-		// How many frames are due: with vsync, as the time passes; else one, then the sound sets the pace.
+		// How many frames are due. With vsync and a screen whose refresh is within 1% of a whole multiple
+		// of the game's rate (60 or 120 Hz for a 59.73 Hz game), one frame every so many refreshes,
+		// counted whole, so none is shown twice or skipped as the two rates drift apart (every few
+		// seconds at 60 Hz); the game runs that little faster, its sound resampled to match. With vsync
+		// otherwise (or in netplay, which keeps the game's own rate), as the time passes; without, one,
+		// then the sound sets the pace.
 		Uint64 const now = SDL_GetPerformanceCounter();
+		double const elapsed = (double) (now - last);
 		frameTicks = frequency / app.frameRate;
 		int due = 1;
+		gameSpeed = 1;
 		if (settings.vsync) {
-			owed += (double) (now - last) / frameTicks;
-			due = (int) owed;
-			owed -= due;
-			due = SDL_min(due, 4);
+			// A refresh's length, from passes that look like one (not a stall, nor a present that didn't wait)
+			if (elapsed > frameTicks / 5 && elapsed < frameTicks * 1.5 &&
+			    (!refreshTicks || (elapsed > refreshTicks * 0.75 && elapsed < refreshTicks * 1.25))) {
+				refreshTicks = refreshTicks ? refreshTicks + (elapsed - refreshTicks) * (refreshSamples < 60 ? 0.1 : 0.01) : elapsed;
+				++refreshSamples;
+			} else if (elapsed < frameTicks / 5) {
+				// Presents not waiting for the screen: measured again
+				refreshTicks = 0;
+				refreshSamples = 0;
+			}
+			int const every = refreshTicks ? (int) (frameTicks / refreshTicks + 0.5) : 0;
+			bool const locked = refreshSamples >= 30 && every >= 1 && !netRunning() &&
+			                    fabs(frameTicks / (every * refreshTicks) - 1) < 0.01;
+			if (locked) {
+				refreshesOwed += SDL_max(1, (int) (elapsed / refreshTicks + 0.5));
+				due = SDL_min(refreshesOwed / every, 4);
+				refreshesOwed %= every;
+				gameSpeed = frameTicks / (every * refreshTicks);
+				owed = 0;
+			} else {
+				owed += elapsed / frameTicks;
+				due = (int) owed;
+				owed -= due;
+				due = SDL_min(due, 4);
+				refreshesOwed = 0;
+			}
 		}
 		last = now;
 		// Fast forward: as many frames as a 60th of a second takes, up to Fast-Forward Speed's, or 12. Only
