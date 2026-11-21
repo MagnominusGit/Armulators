@@ -850,16 +850,21 @@ static int portOf(SDL_JoystickID which) {
 // A hotkey's buttons on each controller, held back from the game after the hotkey until they're let go.
 static uint32_t heldBack[PORTS];
 
-bool padHotkeyPressed(SDL_JoystickID which, int binding, int action) {
+static bool padHotkeyDown(SDL_JoystickID which, int binding, int action) {
 	int const port = portOf(which);
 	if (port < 0 || binding == PAD_NONE || binding != settings.padHotkeys[action]) {
 		return false;
 	}
 	int const hotkey = hotkeyOf(app.pads[port]);
-	if (hotkey == binding || !padHeld(app.pads[port], hotkey)) {
+	return hotkey != binding && padHeld(app.pads[port], hotkey);
+}
+
+bool padHotkeyPressed(SDL_JoystickID which, int binding, int action) {
+	if (!padHotkeyDown(which, binding, action)) {
 		return false;
 	}
-	heldBack[port] |= padBit(hotkey) | padBit(binding);
+	int const port = portOf(which);
+	heldBack[port] |= padBit(hotkeyOf(app.pads[port])) | padBit(binding);
 	return true;
 }
 
@@ -1485,18 +1490,26 @@ void runFrames(void) {
 // Whether the action being done came from a controller's hotkey, for what its messages name.
 static bool actionFromPad;
 
-void requestQuit(bool controller) {
+// The Quit hotkey pressed: whether this press quits. With Quit Twice, a first press only asks for
+// another within three seconds, held for Quit Hold on a controller.
+static bool quitPressed(bool controller, bool hold) {
 	static Uint32 asked;
 	Uint32 const now = SDL_GetTicks();
-	if (asked && now - asked < 3000) {
-		app.running = false;
-		return;
+	if (!settings.quitTwice || (asked && now - asked < 3000)) {
+		return true;
 	}
 	asked = now;
 	if (controller) {
-		osd("Press Hotkey + %s again to quit", padName(settings.padHotkeys[ACT_QUIT]));
+		osd("%s Hotkey + %s again to quit", hold ? "Hold" : "Press", padName(settings.padHotkeys[ACT_QUIT]));
 	} else {
 		osd("Press %s again to quit", scancodeName(settings.hotkeys[ACT_QUIT]));
+	}
+	return false;
+}
+
+void requestQuit(bool controller) {
+	if (quitPressed(controller, false)) {
+		app.running = false;
 	}
 }
 
@@ -1570,9 +1583,39 @@ static void doAction(enum Action action) {
 	}
 }
 
+// The controller whose Quit hotkey is being held to quit, and since when. Its buttons aren't held back,
+// so a quick press of them (Select and Start) still reaches the game.
+static SDL_JoystickID quitPad = -1;
+static Uint32 quitSince;
+
+static void quitHeld(void) {
+	if (quitPad < 0) {
+		return;
+	}
+	int const port = portOf(quitPad);
+	SDL_GameController* const pad = port >= 0 ? app.pads[port] : NULL;
+	if (app.menuOpen || !padHeld(pad, hotkeyOf(pad)) || !padHeld(pad, settings.padHotkeys[ACT_QUIT])) {
+		quitPad = -1;
+	} else if (SDL_GetTicks() - quitSince >= (Uint32) settings.quitHold * 1000) {
+		app.running = false;
+	}
+}
+
 // A controller button or trigger pressed: the hotkey it makes with the Hotkey held. Fast-Forward
 // turns on and off, as on ROCKNIX; Rewind works while held.
 static void padPressed(SDL_JoystickID which, int binding) {
+	if (padHotkeyDown(which, binding, ACT_QUIT)) {
+		if (!quitPressed(true, settings.quitHold > 0)) {
+			return;
+		}
+		if (settings.quitHold) {
+			quitPad = which;
+			quitSince = SDL_GetTicks();
+		} else {
+			app.running = false;
+		}
+		return;
+	}
 	for (int a = 0; a < ACTIONS; ++a) {
 		if (a == ACT_REWIND || !padHotkeyPressed(which, binding, a)) {
 			continue;
@@ -1954,6 +1997,7 @@ int main(int argc, char** argv) {
 		while (SDL_PollEvent(&event)) {
 			handleEvent(&event);
 		}
+		quitHeld();
 		app.fastForward = actionHeld(ACT_FAST_FORWARD) || app.fastForwardOn || coreFastForward;
 		app.rewinding = settings.rewind && app.states && !cheevosHardcore() && !netRunning() && actionHeld(ACT_REWIND);
 		memset(buttonsRead, 0, sizeof(buttonsRead));

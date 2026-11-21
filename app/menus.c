@@ -1024,6 +1024,8 @@ enum {
 	SET_DIM,
 	SET_TOUCH,
 	SET_SWAP_FACE_BUTTONS,
+	SET_QUIT_TWICE,
+	SET_QUIT_HOLD,
 };
 
 // A setting's row (SET_*): left and right step a value or turn it over, as choosing it does. The
@@ -1094,6 +1096,12 @@ static void changeSetting(int which, int delta) {
 	}
 	case SET_SWAP_FACE_BUTTONS:
 		settings.swapFaceButtons = !settings.swapFaceButtons;
+		break;
+	case SET_QUIT_TWICE:
+		settings.quitTwice = !settings.quitTwice;
+		break;
+	case SET_QUIT_HOLD:
+		settings.quitHold = wrap(settings.quitHold, d, 6);
 		break;
 	case SET_TOUCH:
 		settings.touchControls = !settings.touchControls;
@@ -1228,7 +1236,7 @@ static const char* hotkeyHelp(int action, bool controller) {
 	case ACT_REWIND:
 		return "Goes back in time while held.";
 	case ACT_QUIT:
-		return "Quits " APP_NAME " on a second press, writing the game's save first.";
+		return "Quits " APP_NAME ", writing the game's save first. Quit Twice and Quit Hold on the Controls page set how.";
 	case ACT_FPS:
 		return "Shows or hides the frame rate.";
 	case ACT_KEYBOARD:
@@ -1350,6 +1358,12 @@ static void controlsMenu(void) {
 #endif
 	addValue("Swap A/B and X/Y", onOff(settings.swapFaceButtons), changeSetting, SET_SWAP_FACE_BUTTONS);
 	helpFor(APP_HELP_SWAP);
+	addValue("Quit Twice", onOff(settings.quitTwice), changeSetting, SET_QUIT_TWICE);
+	helpFor("The Quit hotkey quits on a second press within three seconds; the first only asks for it.");
+	char hold[16];
+	snprintf(hold, sizeof(hold), settings.quitHold == 1 ? "%d Second" : "%d Seconds", settings.quitHold);
+	addValue("Quit Hold", settings.quitHold ? hold : "Off", changeSetting, SET_QUIT_HOLD);
+	helpFor("How long a controller's Quit hotkey is held to quit, on the second press with Quit Twice. A shorter press goes to the game.");
 	addItem("Reset Controls and Hotkeys", resetControls, 0);
 	helpFor("Puts every button, key and hotkey back as it first was.");
 	items[itemCount - 1].confirm = true;

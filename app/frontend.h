@@ -130,6 +130,10 @@ struct Settings {
 	// Swap A/B and X/Y: off, A is the right face button, as on a Game Boy and in RetroArch; on, A is
 	// the bottom one, on every controller.
 	bool swapFaceButtons;
+	// Quit Twice: the Quit hotkey's first press only asks for another. Quit Hold: the seconds (0 to 5) the
+	// controller's quitting press is held, so a quick press of its buttons reaches the game.
+	bool quitTwice;
+	int quitHold;
 	// Each player's controller, as SDL's GUID, put back in its place when it connects; "" for any.
 	char playerPads[PORTS][33];
 	// The menus' look: the accent color, their size as a percentage, and how far the game behind them

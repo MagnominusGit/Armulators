@@ -43,6 +43,8 @@ void settingsDefaults(void) {
 	settings.filter = FILTER_SHARP;
 	settings.showMessages = true;
 	settings.touchControls = true;
+	settings.quitTwice = true;
+	settings.quitHold = 1;
 	settings.volume = 100;
 	settings.latency = 3;
 	settings.rewindMegabytes = 64;
@@ -218,6 +220,10 @@ static void takeSetting(const char* key, const char* value) {
 		settings.showMessages = yes;
 	} else if (!strcmp(key, "swap_face_buttons")) {
 		settings.swapFaceButtons = yes;
+	} else if (!strcmp(key, "quit_twice")) {
+		settings.quitTwice = yes;
+	} else if (!strcmp(key, "quit_hold")) {
+		settings.quitHold = n < 0 ? 0 : n > 5 ? 5 : n;
 	} else if (!strncmp(key, "player_pad_", 11) && atoi(key + 11) >= 1 && atoi(key + 11) <= PORTS) {
 		copyText(settings.playerPads[atoi(key + 11) - 1], sizeof(settings.playerPads[0]), value);
 	} else if (!strcmp(key, "touch_controls")) {
@@ -303,6 +309,7 @@ void settingsWrite(void) {
 	}
 	fprintf(f, "fast_forward = %d\nshow_messages = %s\ntouch_controls = %s\nswap_face_buttons = %s\n", settings.fastForward,
 	        no[settings.showMessages], no[settings.touchControls], no[settings.swapFaceButtons]);
+	fprintf(f, "quit_twice = %s\nquit_hold = %d\n", no[settings.quitTwice], settings.quitHold);
 	for (int i = 0; i < PORTS; ++i) {
 		fprintf(f, "player_pad_%d = \"%s\"\n", i + 1, settings.playerPads[i]);
 	}
