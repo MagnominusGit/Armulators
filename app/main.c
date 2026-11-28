@@ -1343,14 +1343,28 @@ static bool gameStarted(const char* path, const char* name, void* data, size_t s
 bool loadGame(const char* path) {
 	unloadGame();
 	char named[PATH_SIZE * 2];
-	size_t size;
-	void* data = readContent(path, named, &size);
-	if (!data) {
-		return false;
-	}
-	// A patch beside it applies, as in RetroArch.
+	size_t size = 0;
+	void* data = NULL;
 	char patchName[NAME_SIZE];
-	int const patches = patchGame(path, &data, &size, patchName, sizeof(patchName));
+	int patches = 0;
+	// A core that reads its games' files itself (a disc's, too big to read here) gets the path alone,
+	// an archive's included when it takes them
+	struct retro_system_info info;
+	retro_get_system_info(&info);
+	if (info.need_fullpath) {
+		snprintf(named, sizeof(named), "%s", path);
+		if (path_is_compressed_file(path) && !info.block_extract) {
+			osd("%s can't open games in archives", APP_NAME);
+			return false;
+		}
+	} else {
+		data = readContent(path, named, &size);
+		if (!data) {
+			return false;
+		}
+		// A patch beside it applies, as in RetroArch.
+		patches = patchGame(path, &data, &size, patchName, sizeof(patchName));
+	}
 	chooseGameDataFolders(path);
 	retro_set_environment(environment);
 	retro_init();

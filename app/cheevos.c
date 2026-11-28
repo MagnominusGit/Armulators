@@ -483,8 +483,23 @@ void cheevosLoadGame(void) {
 	}
 	uint32_t const console = appHooks.cheevosConsole ? appHooks.cheevosConsole(app.gameData, app.gameSize) : RC_CONSOLE_UNKNOWN;
 	char hash[33];
-	if (console == RC_CONSOLE_UNKNOWN || !rc_hash_generate_from_buffer(hash, console, app.gameData, app.gameSize)) {
+	if (console == RC_CONSOLE_UNKNOWN) {
 		return;
+	}
+	if (app.gameData) {
+		if (!rc_hash_generate_from_buffer(hash, console, app.gameData, app.gameSize)) {
+			return;
+		}
+	} else {
+		// A core reading its game's file itself (a disc): the file is hashed, read as the core reads it
+		if (appHooks.cheevosCdreader) {
+			rc_hash_init_custom_cdreader(appHooks.cheevosCdreader);
+		} else {
+			rc_hash_init_default_cdreader();
+		}
+		if (!rc_hash_generate_from_file(hash, console, app.gamePath)) {
+			return;
+		}
 	}
 	rc_libretro_memory_destroy(&regions);
 	rc_libretro_memory_init(&regions, maps.num_descriptors ? &maps : NULL, coreMemory, console);

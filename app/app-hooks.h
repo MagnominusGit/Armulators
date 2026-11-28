@@ -14,6 +14,8 @@
 
 #include <stdio.h>
 
+struct rc_hash_cdreader;
+
 struct AppHooks {
 	// Once, before the window opens.
 	void (*start)(void);
@@ -57,8 +59,11 @@ struct AppHooks {
 	// Rows at the end of the Extras tab, and on the Game tab's Cheats page after Load Cheat File.
 	void (*extrasRows)(void);
 	void (*cheatRows)(void);
-	// The console RetroAchievements files a game under (rc_consoles.h), 0 when unknown.
+	// The console RetroAchievements files a game under (rc_consoles.h), 0 when unknown. A core that
+	// needs its games' paths (discs) gets NULL and 0, and its games are hashed from their files,
+	// through cheevosCdreader when it has one (so the formats the core reads are read).
 	uint32_t (*cheevosConsole)(const uint8_t* data, size_t size);
+	struct rc_hash_cdreader* cheevosCdreader;
 	// The core's discs, by what the player knows them as: the Game tab's row for them, one of them,
 	// and the extensions of the files that can be added (NULL-terminated; NULL for any file).
 	const char* discMenu;
