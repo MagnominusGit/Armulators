@@ -87,9 +87,17 @@ static int16_t frameSound[2 * 4096];
 static size_t frameSoundCount;
 static uint16_t rumbleStrength[PORTS][2];
 static bool coreFastForward;
-// A save's memory as last written, to write it only when it changes.
-static uint8_t* writtenSave[2];
-static size_t writtenSize[2];
+// A save's memory as last written, to write it only when it changes: the game's save and its clock's,
+// or each memory of the files loaded together.
+enum { SAVES = 8 };
+static uint8_t* writtenSave[SAVES];
+static size_t writtenSize[SAVES];
+// The files loaded together (a subsystem of the core's), each one's name for its saves and its data;
+// loadedWith is NULL for a game on its own.
+static const struct retro_subsystem_info* subsystems;
+static const struct retro_subsystem_info* loadedWith;
+static char loadedNames[TOGETHER][NAME_SIZE];
+static void* loadedData[TOGETHER];
 
 // path and each folder above it, as mkdir -p makes them.
 static void makeDirectories(const char* path) {
@@ -432,8 +440,10 @@ static bool environment(unsigned command, void* data) {
 		return true;
 	// What this frontend has no use for, accepted.
 	case RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS:
-	case RETRO_ENVIRONMENT_SET_SUBSYSTEM_INFO:
 	case RETRO_ENVIRONMENT_SET_SUPPORT_ACHIEVEMENTS:
+		return true;
+	case RETRO_ENVIRONMENT_SET_SUBSYSTEM_INFO:
+		subsystems = data && ((const struct retro_subsystem_info*) data)->desc ? data : NULL;
 		return true;
 	case RETRO_ENVIRONMENT_SET_MEMORY_MAPS:
 		cheevosSetMemoryMaps(data);
@@ -905,6 +915,61 @@ uint16_t localButtons(unsigned port) {
 	return buttonsNow[port];
 }
 
+// The keyboard's keys and the mouse as the core reads them; neither in netplay, which doesn't carry
+// them. The mouse plays the game once a click on the picture captures it while the core reads one,
+// until the menu opens; a light gun points where the mouse is over the picture.
+static bool keysHeld[RETROK_LAST];
+static bool mouseCaptured, mouseSeen;
+static int mouseMoved[2], mouseFrame[2];
+static float mouseAt[2];
+static uint8_t mouseButtons;
+static Uint32 mouseAsked, gunAsked;
+
+static bool askedLately(Uint32 at) {
+	return at && SDL_GetTicks() - at < 1000;
+}
+
+static void mouseFree(void) {
+	if (mouseCaptured) {
+		SDL_SetRelativeMouseMode(SDL_FALSE);
+		mouseCaptured = false;
+	}
+	mouseMoved[0] = mouseMoved[1] = 0;
+}
+
+static int16_t mouseState(unsigned id) {
+	mouseAsked = SDL_GetTicks();
+	if (!mouseCaptured || app.menuOpen || netRunning()) {
+		return 0;
+	}
+	switch (id) {
+	case RETRO_DEVICE_ID_MOUSE_X: return (int16_t) mouseFrame[0];
+	case RETRO_DEVICE_ID_MOUSE_Y: return (int16_t) mouseFrame[1];
+	case RETRO_DEVICE_ID_MOUSE_LEFT: return mouseButtons >> SDL_BUTTON_LEFT & 1;
+	case RETRO_DEVICE_ID_MOUSE_RIGHT: return mouseButtons >> SDL_BUTTON_RIGHT & 1;
+	case RETRO_DEVICE_ID_MOUSE_MIDDLE: return mouseButtons >> SDL_BUTTON_MIDDLE & 1;
+	default: return 0;
+	}
+}
+
+// The light gun's buttons are the mouse's as RetroArch has them: left the trigger, right and middle
+// the other two.
+static int16_t gunState(unsigned id) {
+	gunAsked = SDL_GetTicks();
+	SDL_Rect const r = app.pictureRect;
+	bool const on = mouseSeen && !mouseCaptured && !app.menuOpen && !netRunning() && r.w > 0 && r.h > 0 &&
+	                mouseAt[0] >= r.x && mouseAt[0] < r.x + r.w && mouseAt[1] >= r.y && mouseAt[1] < r.y + r.h;
+	switch (id) {
+	case RETRO_DEVICE_ID_LIGHTGUN_SCREEN_X: return on ? (int16_t) ((mouseAt[0] - r.x) / r.w * 0xFFFE - 0x7FFF) : 0;
+	case RETRO_DEVICE_ID_LIGHTGUN_SCREEN_Y: return on ? (int16_t) ((mouseAt[1] - r.y) / r.h * 0xFFFE - 0x7FFF) : 0;
+	case RETRO_DEVICE_ID_LIGHTGUN_IS_OFFSCREEN: return !on;
+	case RETRO_DEVICE_ID_LIGHTGUN_TRIGGER: return on && (mouseButtons >> SDL_BUTTON_LEFT & 1);
+	case RETRO_DEVICE_ID_LIGHTGUN_AUX_A: return on && (mouseButtons >> SDL_BUTTON_RIGHT & 1);
+	case RETRO_DEVICE_ID_LIGHTGUN_AUX_B: return on && (mouseButtons >> SDL_BUTTON_MIDDLE & 1);
+	default: return 0;
+	}
+}
+
 // The buttons the core reads: netplay's for each player when connected; the sticks only when not.
 static int16_t inputState(unsigned port, unsigned device, unsigned index, unsigned id) {
 	if (port >= PORTS) {
@@ -914,9 +979,14 @@ static int16_t inputState(unsigned port, unsigned device, unsigned index, unsign
 		uint16_t const bits = netRunning() ? netInput(port, id) : localButtons(port);
 		return (bits >> id) & 1;
 	}
-	// There's no light gun: it points off the screen.
+	if (device == RETRO_DEVICE_KEYBOARD) {
+		return id < RETROK_LAST && keysHeld[id] && !app.menuOpen && !netRunning();
+	}
+	if (device == RETRO_DEVICE_MOUSE) {
+		return mouseState(id);
+	}
 	if (device == RETRO_DEVICE_LIGHTGUN) {
-		return id == RETRO_DEVICE_ID_LIGHTGUN_IS_OFFSCREEN;
+		return gunState(id);
 	}
 	// A touch or click on the picture, as RetroArch gives it; not in netplay, which doesn't carry it.
 	if (device == RETRO_DEVICE_POINTER && index == 0 && !netRunning()) {
@@ -1060,14 +1130,14 @@ static void rememberSave(int slot, const uint8_t* memory, size_t size) {
 }
 
 // The game's save memory from its file, when there is one.
-static void readSave(unsigned id, int slot, const char* extension) {
+static void readSave(unsigned id, int slot, const char* name, const char* extension) {
 	uint8_t* memory = retro_get_memory_data(id);
 	size_t size = retro_get_memory_size(id);
 	if (!memory || !size) {
 		return;
 	}
 	char path[FILE_SIZE];
-	savePath(path, extension);
+	snprintf(path, sizeof(path), "%s/%s.%s", saveDirectory, name, extension);
 	FILE* f = fopen(path, "rb");
 	if (f) {
 		fread(memory, 1, size, f);
@@ -1077,24 +1147,39 @@ static void readSave(unsigned id, int slot, const char* extension) {
 }
 
 // The game's save memory to its file, when it has changed since last read or written.
-static void writeSave(unsigned id, int slot, const char* extension) {
+static void writeSave(unsigned id, int slot, const char* name, const char* extension) {
 	uint8_t* memory = retro_get_memory_data(id);
 	size_t size = retro_get_memory_size(id);
 	if (!memory || !size || (writtenSave[slot] && writtenSize[slot] == size && !memcmp(writtenSave[slot], memory, size))) {
 		return;
 	}
 	char path[FILE_SIZE];
-	savePath(path, extension);
+	snprintf(path, sizeof(path), "%s/%s.%s", saveDirectory, name, extension);
 	if (writeFile(path, memory, size)) {
 		rememberSave(slot, memory, size);
 	}
 }
 
-// The cartridge's save and its clock's.
+// The cartridge's save and its clock's; for files loaded together, each file's memories by its own
+// name, as RetroArch names them.
+static void eachSave(void (*each)(unsigned id, int slot, const char* name, const char* extension)) {
+	if (!loadedWith) {
+		each(RETRO_MEMORY_SAVE_RAM, 0, app.gameName, "srm");
+		each(RETRO_MEMORY_RTC, 1, app.gameName, "rtc");
+		return;
+	}
+	int slot = 0;
+	for (unsigned i = 0; i < loadedWith->num_roms && i < TOGETHER; ++i) {
+		const struct retro_subsystem_rom_info* const rom = &loadedWith->roms[i];
+		for (unsigned j = 0; loadedNames[i][0] && j < rom->num_memory && slot < SAVES; ++j) {
+			each(rom->memory[j].type, slot++, loadedNames[i], rom->memory[j].extension);
+		}
+	}
+}
+
 void writeSaves(void) {
 	if (app.loaded && !app.noCartridge) {
-		writeSave(RETRO_MEMORY_SAVE_RAM, 0, "srm");
-		writeSave(RETRO_MEMORY_RTC, 1, "rtc");
+		eachSave(writeSave);
 	}
 }
 
@@ -1126,12 +1211,18 @@ void unloadGame(void) {
 	retro_deinit();
 	app.keyboard = NULL;
 	app.typing = false;
+	mouseFree();
 	haveDiscs = false;
 	memset(&discs, 0, sizeof(discs));
 	app.loaded = false;
 	app.noCartridge = false;
 	free((void*) app.gameData);
 	app.gameData = NULL;
+	loadedWith = NULL;
+	for (int i = 0; i < TOGETHER; ++i) {
+		free(loadedData[i]);
+		loadedData[i] = NULL;
+	}
 	if (app.game) {
 		SDL_DestroyTexture(app.game);
 		app.game = NULL;
@@ -1172,40 +1263,38 @@ bool loadNoCartridge(void) {
 	return true;
 }
 
-// Loads a game, or the first game in an archive, with its save, cheats and achievements, and its
-// state when Auto Save State is on.
-bool loadGame(const char* path) {
-	unloadGame();
-	// A game in an archive is named as RetroArch names it, archive#game, so the core sees its extension.
-	char named[PATH_SIZE * 2];
-	snprintf(named, sizeof(named), "%s", path);
+// A game's file, or the first game in an archive, read for the core, and named as RetroArch names a
+// game in an archive, archive#game, so the core sees its extension.
+static void* readContent(const char* path, char named[PATH_SIZE * 2], size_t* size) {
+	snprintf(named, PATH_SIZE * 2, "%s", path);
 	// An archive with no game file in it, such as an arcade set of chip files, goes to the core whole.
 	if (path_is_compressed_file(path)) {
 		struct string_list* entries = file_archive_get_file_list(path, APP_ARCHIVED);
 		if (entries && entries->size) {
-			snprintf(named, sizeof(named), "%s#%s", path, entries->elems[0].data);
+			snprintf(named, PATH_SIZE * 2, "%s#%s", path, entries->elems[0].data);
 		}
 		string_list_free(entries);
 	}
-	size_t size;
-	void* data = readGame(named, &size);
+	void* const data = readGame(named, size);
 	if (!data) {
 		osd("Can't read %s", path);
-		return false;
 	}
-	// A patch beside it applies, as in RetroArch.
-	char patchName[NAME_SIZE];
-	int const patches = patchGame(path, &data, &size, patchName, sizeof(patchName));
-	chooseGameDataFolders(path);
-	retro_set_environment(environment);
-	retro_init();
-	struct retro_game_info game = { named, data, size, NULL };
-	if (!retro_load_game(&game)) {
-		free(data);
-		retro_deinit();
-		osd("That game didn't load");
-		return false;
+	return data;
+}
+
+// A file's name without its folder or extension.
+static void baseName(char out[NAME_SIZE], const char* path) {
+	const char* base = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
+	snprintf(out, NAME_SIZE, "%s", base);
+	char* dot = strrchr(out, '.');
+	if (dot && dot != out) {
+		*dot = '\0';
 	}
+}
+
+// The core has the game, named name, from path: its picture starts, with its save, cheats and
+// achievements, and its state when Auto Save State is on.
+static bool gameStarted(const char* path, const char* name, void* data, size_t size) {
 	// The game's file is kept for its achievements' hash and netplay's CRC.
 	app.gameData = data;
 	app.gameSize = size;
@@ -1221,12 +1310,7 @@ bool loadGame(const char* path) {
 		return false;
 	}
 	snprintf(app.gamePath, sizeof(app.gamePath), "%s", path);
-	const char* base = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
-	snprintf(app.gameName, sizeof(app.gameName), "%s", base);
-	char* dot = strrchr(app.gameName, '.');
-	if (dot && dot != app.gameName) {
-		*dot = '\0';
-	}
+	snprintf(app.gameName, sizeof(app.gameName), "%s", name);
 	// The folder it came from is where the menu's game list opens next time.
 	snprintf(settings.directory, sizeof(settings.directory), "%s", path);
 	char* slash = strrchr(settings.directory, '/');
@@ -1237,15 +1321,50 @@ bool loadGame(const char* path) {
 	app.states = retro_serialize_size() > 0;
 	app.paused = false;
 	netGameStarted();
-	readSave(RETRO_MEMORY_SAVE_RAM, 0, "srm");
-	readSave(RETRO_MEMORY_RTC, 1, "rtc");
+	eachSave(readSave);
 	cheatListLoad();
 	cheatListApply();
 	rewindReset();
-	cheevosLoadGame();
+	if (!loadedWith) {
+		cheevosLoadGame();
+	}
 	if (settings.autoState && app.states && !cheevosHardcore() && stateExists(-1)) {
 		loadState(-1);
 		undoForget();
+	}
+	char title[NAME_SIZE + 16];
+	snprintf(title, sizeof(title), APP_NAME " - %s", app.gameName);
+	SDL_SetWindowTitle(app.window, title);
+	return true;
+}
+
+// Loads a game, or the first game in an archive, with its save, cheats and achievements, and its
+// state when Auto Save State is on.
+bool loadGame(const char* path) {
+	unloadGame();
+	char named[PATH_SIZE * 2];
+	size_t size;
+	void* data = readContent(path, named, &size);
+	if (!data) {
+		return false;
+	}
+	// A patch beside it applies, as in RetroArch.
+	char patchName[NAME_SIZE];
+	int const patches = patchGame(path, &data, &size, patchName, sizeof(patchName));
+	chooseGameDataFolders(path);
+	retro_set_environment(environment);
+	retro_init();
+	struct retro_game_info game = { named, data, size, NULL };
+	if (!retro_load_game(&game)) {
+		free(data);
+		retro_deinit();
+		osd("That game didn't load");
+		return false;
+	}
+	char name[NAME_SIZE];
+	baseName(name, path);
+	if (!gameStarted(path, name, data, size)) {
+		return false;
 	}
 	if (patches < 0) {
 		osd("%s doesn't fit this game, which runs unpatched", patchName);
@@ -1253,9 +1372,84 @@ bool loadGame(const char* path) {
 		osd(patches == 1 ? "Patched" : "Patched with %d patches", patches);
 	}
 	recentAdd(path);
-	char title[NAME_SIZE + 16];
-	snprintf(title, sizeof(title), APP_NAME " - %s", app.gameName);
-	SDL_SetWindowTitle(app.window, title);
+	return true;
+}
+
+const struct retro_subsystem_info* coreSubsystems(void) {
+	return subsystems;
+}
+
+bool loadedTogether(void) {
+	return app.loaded && loadedWith;
+}
+
+// Loads files that go together as the core's subsystem with: paths[i] for each of its files, empty for
+// one left out. Each file's saves go by its own name; the states by all of theirs. They aren't added
+// to the recent games, nor have achievements or netplay, which take one file.
+bool loadTogether(const struct retro_subsystem_info* with, char paths[][PATH_SIZE]) {
+	if (netRunning()) {
+		osd("Not during netplay");
+		return false;
+	}
+	unloadGame();
+	static char named[TOGETHER][PATH_SIZE * 2];
+	struct retro_game_info games[TOGETHER] = { { 0 } };
+	char name[NAME_SIZE] = "";
+	unsigned const count = SDL_min(with->num_roms, (unsigned) TOGETHER);
+	const char* first = NULL;
+	for (unsigned i = 0; i < count; ++i) {
+		loadedNames[i][0] = '\0';
+		if (!paths[i][0]) {
+			continue;
+		}
+		size_t size;
+		void* const data = readContent(paths[i], named[i], &size);
+		if (!data) {
+			for (unsigned j = 0; j < i; ++j) {
+				free(loadedData[j]);
+				loadedData[j] = NULL;
+			}
+			return false;
+		}
+		loadedData[i] = data;
+		games[i] = (struct retro_game_info) { named[i], data, size, NULL };
+		baseName(loadedNames[i], paths[i]);
+		size_t const length = strlen(name);
+		snprintf(name + length, sizeof(name) - length, "%s%s", length ? " + " : "", loadedNames[i]);
+		first = first ? first : paths[i];
+	}
+	if (!first) {
+		return false;
+	}
+	chooseGameDataFolders(first);
+	retro_set_environment(environment);
+	retro_init();
+	loadedWith = with;
+	if (!retro_load_game_special(with->id, games, count)) {
+		retro_deinit();
+		loadedWith = NULL;
+		for (unsigned i = 0; i < count; ++i) {
+			free(loadedData[i]);
+			loadedData[i] = NULL;
+		}
+		osd("Those didn't load");
+		return false;
+	}
+	// The first file's data stays as the game's, the others until the game closes.
+	unsigned at = 0;
+	while (!loadedData[at]) {
+		++at;
+	}
+	void* const data = loadedData[at];
+	loadedData[at] = NULL;
+	if (!gameStarted(first, name, data, games[at].size)) {
+		loadedWith = NULL;
+		for (unsigned i = 0; i < count; ++i) {
+			free(loadedData[i]);
+			loadedData[i] = NULL;
+		}
+		return false;
+	}
 	return true;
 }
 
@@ -1465,6 +1659,10 @@ void resetGame(void) {
 
 // One frame of the game as it should run now: through netplay, rewinding, with run-ahead, or plainly.
 void runFrames(void) {
+	// The mouse's moves since the last frame are this frame's, run again as it is for run-ahead.
+	mouseFrame[0] = mouseMoved[0];
+	mouseFrame[1] = mouseMoved[1];
+	mouseMoved[0] = mouseMoved[1] = 0;
 	hwBegin();
 	if (netRunning()) {
 		netFrame();
@@ -1685,6 +1883,78 @@ static uint16_t retroModifiers(Uint16 mod) {
 	       (mod & KMOD_CAPS ? RETROKMOD_CAPSLOCK : 0) | (mod & KMOD_NUM ? RETROKMOD_NUMLOCK : 0);
 }
 
+// Where a real mouse's event is, in the renderer's pixels, and whether that's over the picture.
+static bool mouseOverPicture(int x, int y) {
+	int ww, wh, width, height;
+	SDL_GetWindowSize(app.window, &ww, &wh);
+	SDL_GetRendererOutputSize(app.renderer, &width, &height);
+	mouseAt[0] = ww ? (float) x * width / ww : 0;
+	mouseAt[1] = wh ? (float) y * height / wh : 0;
+	mouseSeen = true;
+	SDL_Rect const r = app.pictureRect;
+	return mouseAt[0] >= r.x && mouseAt[0] < r.x + r.w && mouseAt[1] >= r.y && mouseAt[1] < r.y + r.h;
+}
+
+// The keys held and the mouse, for the core. Returns whether the event is the game's alone: the
+// captured mouse's, and a light gun's right and middle buttons, which would open the menu.
+static bool coreInputEvent(const SDL_Event* event) {
+	switch (event->type) {
+	case SDL_KEYDOWN:
+	case SDL_KEYUP: {
+		unsigned const key = retroKey(event->key.keysym.sym);
+		if (key < RETROK_LAST) {
+			keysHeld[key] = event->type == SDL_KEYDOWN;
+		}
+		return false;
+	}
+	case SDL_WINDOWEVENT:
+		if (event->window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+			memset(keysHeld, 0, sizeof(keysHeld));
+			mouseButtons = 0;
+			mouseFree();
+		}
+		return false;
+	case SDL_MOUSEMOTION:
+		if (event->motion.which == SDL_TOUCH_MOUSEID) {
+			return false;
+		}
+		if (mouseCaptured) {
+			mouseMoved[0] += event->motion.xrel;
+			mouseMoved[1] += event->motion.yrel;
+			return true;
+		}
+		mouseOverPicture(event->motion.x, event->motion.y);
+		return false;
+	case SDL_MOUSEBUTTONDOWN:
+	case SDL_MOUSEBUTTONUP: {
+		if (event->button.which == SDL_TOUCH_MOUSEID || event->button.button > SDL_BUTTON_X2) {
+			return false;
+		}
+		bool const down = event->type == SDL_MOUSEBUTTONDOWN;
+		uint8_t const bit = (uint8_t) (1u << event->button.button);
+		mouseButtons = (uint8_t) (down ? mouseButtons | bit : mouseButtons & ~bit);
+		if (mouseCaptured) {
+			return true;
+		}
+		bool const over = mouseOverPicture(event->button.x, event->button.y);
+		if (down && over && event->button.button == SDL_BUTTON_LEFT && app.loaded && !app.menuOpen && !netRunning() &&
+		    askedLately(mouseAsked) && SDL_SetRelativeMouseMode(SDL_TRUE) == 0) {
+			mouseCaptured = true;
+			mouseButtons = (uint8_t) (mouseButtons & ~bit);
+			mouseMoved[0] = mouseMoved[1] = 0;
+			if (settings.hotkeys[ACT_MENU]) {
+				osd("The mouse plays the game; %s frees it", scancodeName(settings.hotkeys[ACT_MENU]));
+			} else {
+				osd("The mouse plays the game; the menu frees it");
+			}
+			return true;
+		}
+		return app.loaded && !app.menuOpen && askedLately(gunAsked) && event->button.button != SDL_BUTTON_LEFT;
+	}
+	}
+	return false;
+}
+
 // The first character of UTF-8 text
 static uint32_t firstCharacter(const char* text) {
 	const unsigned char* t = (const unsigned char*) text;
@@ -1752,7 +2022,7 @@ static void handleEvent(const SDL_Event* given) {
 		placed.cbutton.button = (Uint8) facePlace(SDL_GameControllerFromInstanceID(given->cbutton.which), given->cbutton.button);
 	}
 	SDL_Event const* const event = &placed;
-	if (typingEvent(event)) {
+	if (coreInputEvent(event) || typingEvent(event)) {
 		return;
 	}
 	if (uiEvent(event) || touchEvent(event)) {
@@ -2001,6 +2271,9 @@ int main(int argc, char** argv) {
 		app.fastForward = actionHeld(ACT_FAST_FORWARD) || app.fastForwardOn || coreFastForward;
 		app.rewinding = settings.rewind && app.states && !cheevosHardcore() && !netRunning() && actionHeld(ACT_REWIND);
 		memset(buttonsRead, 0, sizeof(buttonsRead));
+		if (mouseCaptured && (app.menuOpen || !app.loaded || netRunning() || (!app.paused && !askedLately(mouseAsked)))) {
+			mouseFree();
+		}
 		cheevosIdle();
 		netScanIdle();
 		// Paused, in the menus or without a game: only the picture. Netplay runs on behind the menus.

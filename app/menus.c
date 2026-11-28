@@ -74,12 +74,27 @@ static void restart(int argument, int delta) {
 }
 
 // The files the game list shows: games, and archives that may hold one.
+// While files to load together are chosen, the extensions the one wanted may have ("sfc|smc"), besides
+// archives.
+static const char* pickExtensions;
+
+static bool listedExtension(const char* list, const char* extension) {
+	size_t const length = strlen(extension);
+	for (const char* at = list; *at; at += strcspn(at, "|"), at += *at == '|') {
+		if (strcspn(at, "|") == length && !strncasecmp(at, extension, length)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static bool gameFile(const char* name) {
 	static const char* const extensions[] = { APP_EXTENSIONS };
 	const char* dot = strrchr(name, '.');
 	for (size_t i = 0; dot && i < sizeof(extensions) / sizeof(*extensions); ++i) {
 		if (!strcasecmp(dot, extensions[i])) {
-			return true;
+			return !pickExtensions || !*pickExtensions || listedExtension(pickExtensions, dot + 1) ||
+			       !strcasecmp(dot, ".zip") || !strcasecmp(dot, ".7z");
 		}
 	}
 	return false;
@@ -242,11 +257,67 @@ static void shownPath(char* out, size_t size, const char* path) {
 static bool (*gamePicked)(const char* path);
 static char gameWanted[NAME_SIZE];
 
+// Files loaded together: the core's subsystem chosen, then each of its files in turn from the game
+// list, where one it can do without can be left out.
+static const struct retro_subsystem_info* together;
+static unsigned togetherAt;
+static char togetherPaths[TOGETHER][PATH_SIZE];
+
+static unsigned togetherCount(void) {
+	return together->num_roms < TOGETHER ? together->num_roms : TOGETHER;
+}
+
+static void togetherWanted(void) {
+	const struct retro_subsystem_rom_info* const rom = &together->roms[togetherAt];
+	snprintf(gameWanted, sizeof(gameWanted), "%s, %u of %u", rom->desc, togetherAt + 1, togetherCount());
+	pickExtensions = rom->valid_extensions;
+	browserListed[0] = '\0';
+}
+
+// The next file wanted, or with all of them the load: whether it's done. If they didn't load, the core
+// says why, and they're asked for again.
+static bool togetherNext(void) {
+	if (++togetherAt < togetherCount()) {
+		togetherWanted();
+		return false;
+	}
+	pickExtensions = NULL;
+	if (loadTogether(together, togetherPaths)) {
+		return true;
+	}
+	togetherAt = 0;
+	memset(togetherPaths, 0, sizeof(togetherPaths));
+	togetherWanted();
+	return false;
+}
+
+static bool togetherPicked(const char* path) {
+	snprintf(togetherPaths[togetherAt], PATH_SIZE, "%s", path);
+	return togetherNext();
+}
+
+static void togetherLeaveOut(int argument, int delta) {
+	(void) argument;
+	if (!delta) {
+		togetherPaths[togetherAt][0] = '\0';
+		if (togetherNext()) {
+			gamePicked = NULL;
+			uiCloseMenu();
+		}
+	}
+}
+
 // The game list: the folder's path and counts, "..", then each folder and game.
 void browserMenu(void) {
 	readBrowser();
 	if (gamePicked) {
 		addInfo("Looking For", gameWanted);
+	}
+	if (gamePicked == togetherPicked && !together->roms[togetherAt].required) {
+		static char without[NAME_SIZE];
+		snprintf(without, sizeof(without), "Without %s", together->roms[togetherAt].desc);
+		addItem(without, togetherLeaveOut, 0);
+		helpFor("Loads them with this one left out.");
 	}
 	// The folder's name, and how many games and folders it holds.
 	int folders = 0;
@@ -475,6 +546,7 @@ static void browse(int index, int delta) {
 // file chosen goes to picked, which says whether it's the one; the list stays open until it is.
 void uiPickGame(const char* title, const char* wanted, bool (*picked)(const char* path)) {
 	gamePicked = picked;
+	pickExtensions = NULL;
 	if (!picked) {
 		return;
 	}
@@ -503,6 +575,8 @@ static void browseTo(int which, int delta) {
 static void openBrowser(int argument, int delta) {
 	(void) argument;
 	if (!delta) {
+		gamePicked = NULL;
+		pickExtensions = NULL;
 		if (browserFor != BROWSE_GAMES) {
 			browserFor = BROWSE_GAMES;
 			snprintf(browserPath, sizeof(browserPath), "%s", browserGamesPath);
@@ -510,6 +584,54 @@ static void openBrowser(int argument, int delta) {
 		browserListed[0] = '\0';
 		pushMenu(browserMenu, "Load Game");
 	}
+}
+
+// A subsystem chosen: its first file from the game list.
+static void togetherStart(int index, int delta) {
+	if (delta) {
+		return;
+	}
+	together = &coreSubsystems()[index];
+	togetherAt = 0;
+	memset(togetherPaths, 0, sizeof(togetherPaths));
+	togetherWanted();
+	gamePicked = togetherPicked;
+	if (browserFor != BROWSE_GAMES) {
+		browserFor = BROWSE_GAMES;
+		snprintf(browserPath, sizeof(browserPath), "%s", browserGamesPath);
+	}
+	browserListed[0] = '\0';
+	pushMenu(browserMenu, together->desc);
+}
+
+static void togetherMenu(void) {
+	const struct retro_subsystem_info* const subsystems = coreSubsystems();
+	for (int i = 0; subsystems && subsystems[i].desc; ++i) {
+		addItem(subsystems[i].desc, togetherStart, i);
+		helpFor("Chooses each of its files in turn.");
+	}
+}
+
+static void openTogether(int argument, int delta) {
+	(void) argument;
+	if (!delta) {
+		pushMenu(togetherMenu, "Load Files Together");
+	}
+}
+
+// Load Files Together, when the core has files that go together; its help names them.
+static void addTogether(void) {
+	const struct retro_subsystem_info* const subsystems = coreSubsystems();
+	if (!subsystems) {
+		return;
+	}
+	static char help[NAME_SIZE];
+	size_t length = (size_t) snprintf(help, sizeof(help), "Files that go together:");
+	for (int i = 0; subsystems[i].desc && length < sizeof(help); ++i) {
+		length += (size_t) snprintf(help + length, sizeof(help) - length, "%s %s", i ? "," : "", subsystems[i].desc);
+	}
+	addItem("Load Files Together...", openTogether, 0);
+	helpFor(help);
 }
 
 // Then General, with the recent games.
@@ -2057,6 +2179,7 @@ static void generalTab(void) {
 	}
 	addItem("Load Game...", openBrowser, 0);
 	helpFor("Finds a game in your folders; zip and 7z archives open too.");
+	addTogether();
 	addHeader("Settings");
 	addSettingsPages();
 	addItem("Reset All Settings", resetConfig, 0);
@@ -2120,7 +2243,7 @@ static void gameTab(void) {
 
 // Extras: netplay and RetroAchievements.
 static void extrasTab(void) {
-	if (!noStates()) {
+	if (!noStates() && !loadedTogether()) {
 		addItem("Netplay...", openNetplay, 0);
 		helpFor("Playing with other devices over the network: hosting, joining, and the link.");
 	}

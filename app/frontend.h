@@ -252,6 +252,13 @@ struct App {
 extern struct App app;
 
 bool loadGame(const char* path);
+// The most files loaded together.
+enum { TOGETHER = 4 };
+// The core's loads of files that go together (libretro's subsystems), NULL when it has none;
+// loadTogether loads with one, paths[i] being each of its files (empty for one left out).
+const struct retro_subsystem_info* coreSubsystems(void);
+bool loadTogether(const struct retro_subsystem_info* with, char paths[][PATH_SIZE]);
+bool loadedTogether(void);
 bool loadNoCartridge(void);
 void unloadGame(void);
 // The core's discs (libretro's disk control), when it has them; the members the older interface
